@@ -73,6 +73,8 @@ pub const aes_default_bc = @import("aes_default_bc.zig");
 pub const aes_selftest = @import("aes_selftest.zig");
 pub const fips_selftest = @import("fips_selftest.zig");
 pub const service_indicator = @import("service_indicator.zig");
+pub const aes_ctr_drbg = @import("aes_ctr_drbg.zig");
+pub const session = @import("session.zig");
 
 comptime {
     _ = build_options;
@@ -139,8 +141,13 @@ comptime {
     _ = aes_selftest;
     _ = fips_selftest;
     _ = service_indicator;
+    _ = aes_ctr_drbg;
+    _ = session;
 
     // Compile-time sanity checks on core types, masks, rotations, and magic constants.
+    std.debug.assert(@offsetOf(types.SYMCRYPT_SESSION, "replayState") == 0);
+    std.debug.assert(@offsetOf(types.SYMCRYPT_SESSION_REPLAY_STATE, "replayMask") == 0);
+    std.debug.assert(@offsetOf(types.SYMCRYPT_SESSION_REPLAY_STATE, "messageNumber") == 8);
     std.debug.assert(@sizeOf(types.SYMCRYPT_ERROR) == @sizeOf(c_int));
     std.debug.assert(@backingInt(types.SYMCRYPT_ERROR.SYMCRYPT_NO_ERROR) == 0);
     std.debug.assert(@backingInt(types.SYMCRYPT_ERROR.SYMCRYPT_WRONG_KEY_SIZE) == 0x8001);
