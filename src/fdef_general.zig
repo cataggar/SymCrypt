@@ -1049,7 +1049,7 @@ pub export fn SymCryptFdefFreeTrialDivisionContext(pContext: PCSYMCRYPT_TRIALDIV
 pub export fn SymCryptFdefIntFindSmallDivisor(
     pContext: PCSYMCRYPT_TRIALDIVISION_CONTEXT,
     piSrc: PCSYMCRYPT_INT,
-    pbScratch: PBYTE,
+    pbScratch: ?PBYTE,
     cbScratch: SIZE_T,
 ) callconv(SYMCRYPT_CALL) UINT32 {
     const pSrc: PCUINT32 = SYMCRYPT_FDEF_INT_PCUINT32(piSrc);
