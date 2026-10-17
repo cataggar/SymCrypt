@@ -7,7 +7,6 @@ const symcrypt_version = std.SemanticVersion{
 };
 
 const common_c_sources: []const []const u8 = &.{
-    "a_dispatch.c",
     "aes-neon.c",
     "ccm.c",
     "crt.c",
@@ -28,8 +27,6 @@ const common_c_sources: []const []const u8 = &.{
     "eckey.c",
     "ecpoint.c",
     "ecurve.c",
-    "fdef_general.c",
-    "fdef_int.c",
     "fdef_mod.c",
     "fdef369_mod.c",
     "gcm.c",
