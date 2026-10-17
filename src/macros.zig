@@ -252,15 +252,15 @@ pub const SYMCRYPT_MASK32_LT = MASK32_LT;
 
 pub extern fn SymCryptFatal(fatalCode: u32) callconv(types.SYMCRYPT_CALL) noreturn;
 
-pub fn multiCharConstant(comptime str: []const u8) u32 {
-    comptime {
+pub inline fn multiCharConstant(comptime str: []const u8) u32 {
+    return comptime blk: {
         std.debug.assert(str.len >= 1 and str.len <= 4);
         var val: u32 = 0;
         for (str) |c| {
             val = (val << 8) | @as(u32, c);
         }
-        return val;
-    }
+        break :blk val;
+    };
 }
 
 pub const MAGIC_CONSTANT: usize =
