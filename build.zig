@@ -50,16 +50,10 @@ const x86_specialized_c_sources: []const []const u8 = &.{
 };
 
 const unittest_cpp_sources: []const []const u8 = &.{
-    "callback.cpp",
-    "kat.cpp",
-    "main.cpp",
+    "cpp_bridge.cpp",
     "perf.cpp",
     "perfPrint.cpp",
-    "printtable.cpp",
     "ref_implementations.cpp",
-    "resultMerge.cpp",
-    "rndDriver.cpp",
-    "rng.cpp",
     "sc_implementations.cpp",
     "testAccessors.cpp",
     "testAesCtrDrbg.cpp",
@@ -93,44 +87,37 @@ const unittest_cpp_sources: []const []const u8 = &.{
     "testStatusIndicator.cpp",
     "testStreamCipher.cpp",
     "testTlsCbcHmac.cpp",
-    "testutil.cpp",
     "testWipe.cpp",
     "testXof.cpp",
     "testXts.cpp",
 };
 
-const KatFile = struct {
-    name: []const u8,
-    cxx_name: []const u8,
-    content: []const u8,
-};
-
-const kat_files: []const KatFile = &.{
-    .{ .name = "kat_IEEE802_11SaeCustom.dat", .cxx_name = "kat_IEEE802_11SaeCustom_dat", .content = @embedFile("unittest/kat_IEEE802_11SaeCustom.dat") },
-    .{ .name = "kat_authenc.dat", .cxx_name = "kat_authenc_dat", .content = @embedFile("unittest/kat_authenc.dat") },
-    .{ .name = "kat_blockcipher.dat", .cxx_name = "kat_blockcipher_dat", .content = @embedFile("unittest/kat_blockcipher.dat") },
-    .{ .name = "kat_composite_kem.dat", .cxx_name = "kat_composite_kem_dat", .content = @embedFile("unittest/kat_composite_kem.dat") },
-    .{ .name = "kat_composite_mldsa.dat", .cxx_name = "kat_composite_mldsa_dat", .content = @embedFile("unittest/kat_composite_mldsa.dat") },
-    .{ .name = "kat_cxof.dat", .cxx_name = "kat_cxof_dat", .content = @embedFile("unittest/kat_cxof.dat") },
-    .{ .name = "kat_dh.dat", .cxx_name = "kat_dh_dat", .content = @embedFile("unittest/kat_dh.dat") },
-    .{ .name = "kat_dsa.dat", .cxx_name = "kat_dsa_dat", .content = @embedFile("unittest/kat_dsa.dat") },
-    .{ .name = "kat_ecdsa.dat", .cxx_name = "kat_ecdsa_dat", .content = @embedFile("unittest/kat_ecdsa.dat") },
-    .{ .name = "kat_hash.dat", .cxx_name = "kat_hash_dat", .content = @embedFile("unittest/kat_hash.dat") },
-    .{ .name = "kat_hash_long.dat", .cxx_name = "kat_hash_long_dat", .content = @embedFile("unittest/kat_hash_long.dat") },
-    .{ .name = "kat_hbs.dat", .cxx_name = "kat_hbs_dat", .content = @embedFile("unittest/kat_hbs.dat") },
-    .{ .name = "kat_hpke.dat", .cxx_name = "kat_hpke_dat", .content = @embedFile("unittest/kat_hpke.dat") },
-    .{ .name = "kat_kdf.dat", .cxx_name = "kat_kdf_dat", .content = @embedFile("unittest/kat_kdf.dat") },
-    .{ .name = "kat_kem.dat", .cxx_name = "kat_kem_dat", .content = @embedFile("unittest/kat_kem.dat") },
-    .{ .name = "kat_keywrap.dat", .cxx_name = "kat_keywrap_dat", .content = @embedFile("unittest/kat_keywrap.dat") },
-    .{ .name = "kat_kmac.dat", .cxx_name = "kat_kmac_dat", .content = @embedFile("unittest/kat_kmac.dat") },
-    .{ .name = "kat_mac.dat", .cxx_name = "kat_mac_dat", .content = @embedFile("unittest/kat_mac.dat") },
-    .{ .name = "kat_pqdsa.dat", .cxx_name = "kat_pqdsa_dat", .content = @embedFile("unittest/kat_pqdsa.dat") },
-    .{ .name = "kat_rng.dat", .cxx_name = "kat_rng_dat", .content = @embedFile("unittest/kat_rng.dat") },
-    .{ .name = "kat_rsaenc.dat", .cxx_name = "kat_rsaenc_dat", .content = @embedFile("unittest/kat_rsaenc.dat") },
-    .{ .name = "kat_rsasign.dat", .cxx_name = "kat_rsasign_dat", .content = @embedFile("unittest/kat_rsasign.dat") },
-    .{ .name = "kat_streamcipher.dat", .cxx_name = "kat_streamcipher_dat", .content = @embedFile("unittest/kat_streamcipher.dat") },
-    .{ .name = "kat_xof.dat", .cxx_name = "kat_xof_dat", .content = @embedFile("unittest/kat_xof.dat") },
-    .{ .name = "kat_xts.dat", .cxx_name = "kat_xts_dat", .content = @embedFile("unittest/kat_xts.dat") },
+const kat_file_names: []const []const u8 = &.{
+    "kat_IEEE802_11SaeCustom.dat",
+    "kat_authenc.dat",
+    "kat_blockcipher.dat",
+    "kat_composite_kem.dat",
+    "kat_composite_mldsa.dat",
+    "kat_cxof.dat",
+    "kat_dh.dat",
+    "kat_dsa.dat",
+    "kat_ecdsa.dat",
+    "kat_hash.dat",
+    "kat_hash_long.dat",
+    "kat_hbs.dat",
+    "kat_hpke.dat",
+    "kat_kdf.dat",
+    "kat_kem.dat",
+    "kat_keywrap.dat",
+    "kat_kmac.dat",
+    "kat_mac.dat",
+    "kat_pqdsa.dat",
+    "kat_rng.dat",
+    "kat_rsaenc.dat",
+    "kat_rsasign.dat",
+    "kat_streamcipher.dat",
+    "kat_xof.dat",
+    "kat_xts.dat",
 };
 
 pub fn build(b: *std.Build) void {
@@ -165,7 +152,7 @@ pub fn build(b: *std.Build) void {
         else => false,
     };
 
-    const generated_headers = generateHeaders(b, os_tag == .windows, build_tests and os_tag != .windows);
+    const generated_headers = generateHeaders(b, os_tag == .windows);
 
     const build_options = b.addOptions();
     build_options.addOption(bool, "use_asm", effective_use_asm);
@@ -209,12 +196,20 @@ pub fn build(b: *std.Build) void {
 
     if (build_tests and os_tag != .windows) {
         const unittest_mod = b.createModule(.{
+            .root_source_file = b.path("unittest_zig/root.zig"),
             .target = target,
             .optimize = optimize,
             .link_libc = true,
             .link_libcpp = true,
             .pic = true,
         });
+        unittest_mod.addOptions("build_options", build_options);
+        for (kat_file_names) |kat_name| {
+            const rel_path = std.fmt.allocPrint(b.allocator, "unittest/{s}", .{kat_name}) catch @panic("OOM");
+            unittest_mod.addAnonymousImport(kat_name, .{
+                .root_source_file = b.path(rel_path),
+            });
+        }
         configureModuleCommon(b, unittest_mod, generated_headers, target, optimize, effective_use_asm, fips_build);
         unittest_mod.addIncludePath(b.path("inc/symcrypt_plus"));
         unittest_mod.addIncludePath(b.path("lib_plus"));
@@ -321,7 +316,7 @@ pub fn build(b: *std.Build) void {
     }
 }
 
-fn generateHeaders(b: *std.Build, is_windows: bool, include_kat_headers: bool) *std.Build.Step.WriteFile {
+fn generateHeaders(b: *std.Build, is_windows: bool) *std.Build.Step.WriteFile {
     const wf = b.addWriteFiles();
 
     if (is_windows) {
@@ -365,48 +360,6 @@ fn generateHeaders(b: *std.Build, is_windows: bool, include_kat_headers: bool) *
         \\
     ;
     _ = wf.add("buildInfo.h", build_info);
-
-    if (include_kat_headers) {
-        var resource_buf: std.ArrayListUnmanaged(u8) = .empty;
-        resource_buf.appendSlice(b.allocator, "#pragma once\n") catch @panic("OOM");
-
-        for (kat_files) |kat| {
-            const header_name = std.fmt.allocPrint(b.allocator, "{s}.h", .{kat.name}) catch @panic("OOM");
-            const header_content = std.fmt.allocPrint(
-                b.allocator,
-                "#pragma once\nstatic const char {s}[] = R\"for_c++_include(\n{s})for_c++_include\";\n",
-                .{ kat.cxx_name, kat.content },
-            ) catch @panic("OOM");
-            _ = wf.add(header_name, header_content);
-            const include_line = std.fmt.allocPrint(b.allocator, "#include \"{s}\"\n", .{header_name}) catch @panic("OOM");
-            resource_buf.appendSlice(b.allocator, include_line) catch @panic("OOM");
-        }
-
-        resource_buf.appendSlice(b.allocator,
-            \\
-            \\static inline
-            \\size_t GetResourceBytes(const char *resourceName, const char **bytes)
-            \\{
-            \\
-        ) catch @panic("OOM");
-
-        for (kat_files) |kat| {
-            const branch_code = std.fmt.allocPrint(
-                b.allocator,
-                \\    if (strcasecmp(resourceName, "{s}") == 0) {{
-                \\        *bytes = {s};
-                \\        return sizeof({s});
-                \\    }}
-                \\
-            ,
-                .{ kat.name, kat.cxx_name, kat.cxx_name },
-            ) catch @panic("OOM");
-            resource_buf.appendSlice(b.allocator, branch_code) catch @panic("OOM");
-        }
-
-        resource_buf.appendSlice(b.allocator, "    return 0;\n}\n") catch @panic("OOM");
-        _ = wf.add("resource.h", resource_buf.items);
-    }
 
     return wf;
 }
