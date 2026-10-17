@@ -19,6 +19,11 @@ pub const selftest = @import("selftest.zig");
 pub const scs_table = @import("scs_table.zig");
 pub const scs_tools = @import("scs_tools.zig");
 pub const recoding = @import("recoding.zig");
+pub const marvin32 = @import("marvin32.zig");
+pub const poly1305 = @import("poly1305.zig");
+pub const chacha20 = @import("chacha20.zig");
+pub const chacha20_poly1305 = @import("chacha20_poly1305.zig");
+pub const rc4 = @import("rc4.zig");
 
 comptime {
     _ = build_options;
@@ -31,6 +36,11 @@ comptime {
     _ = scs_table;
     _ = scs_tools;
     _ = recoding;
+    _ = marvin32;
+    _ = poly1305;
+    _ = chacha20;
+    _ = chacha20_poly1305;
+    _ = rc4;
 
     // Compile-time sanity checks on core types, masks, rotations, and magic constants.
     std.debug.assert(@sizeOf(types.SYMCRYPT_ERROR) == @sizeOf(c_int));

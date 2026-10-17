@@ -250,7 +250,7 @@ pub const SYMCRYPT_MASK32_LT = MASK32_LT;
 // Magic Value & Fatal Error Helpers
 // ==============================================================================================
 
-pub extern fn SymCryptFatal(fatalCode: u32) callconv(types.SYMCRYPT_CALL) noreturn;
+pub extern fn SymCryptFatal(fatalCode: u32) callconv(types.SYMCRYPT_CALL) void;
 
 pub inline fn multiCharConstant(comptime str: []const u8) u32 {
     return comptime blk: {
