@@ -79,15 +79,6 @@ const x86_specialized_c_sources: []const []const u8 = &.{
     "sha512-ymm.c",
 };
 
-const plus_c_sources: []const []const u8 = &.{
-    "ec_encoding.c",
-    "hpke.c",
-    "hpke_aead.c",
-    "hpke_kdf.c",
-    "hpke_kem.c",
-    "hpke_kem_dhkem.c",
-};
-
 const unittest_cpp_sources: []const []const u8 = &.{
     "callback.cpp",
     "kat.cpp",
@@ -231,18 +222,11 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(symcrypt_lib);
 
     const plus_mod = b.createModule(.{
+        .root_source_file = b.path("src_plus/root.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,
         .pic = if (os_tag == .windows) null else true,
-    });
-    configureModuleCommon(b, plus_mod, generated_headers, target, optimize, effective_use_asm, fips_build);
-    plus_mod.addIncludePath(b.path("inc/symcrypt_plus"));
-    plus_mod.addIncludePath(b.path("lib_plus"));
-    plus_mod.addCSourceFiles(.{
-        .root = b.path("lib_plus"),
-        .files = plus_c_sources,
-        .flags = getCFlags(b, target, optimize, &.{}) catch @panic("OOM"),
     });
     plus_mod.linkLibrary(symcrypt_lib);
 
