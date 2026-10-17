@@ -243,14 +243,16 @@ pub fn symCryptScsTableLoad128XmmImpl(
     );
 
     const V128 = @Vector(4, u32);
-    var count: V128 = @splat(0);
+    const zeroes: V128 = @splat(0);
+    const allOnes: V128 = @splat(0xffffffff);
+    var count: V128 = zeroes;
     const ones: V128 = @splat(1);
     const entry: V128 = @splat(iIndex);
 
     var pSrc: [*]align(16) const V128 = @ptrCast(@alignCast(pScsTable.pbTableData.?));
     const pDst: [*]align(16) V128 = @ptrCast(@alignCast(pbData));
 
-    var mask: V128 = @bitCast(@as(@Vector(4, i32), @intFromBool(count == entry)));
+    var mask: V128 = @select(u32, count == entry, allOnes, zeroes);
     count +%= ones;
 
     var r0: V128 = mask & pSrc[0];
@@ -268,7 +270,7 @@ pub fn symCryptScsTableLoad128XmmImpl(
         nElements -= 1;
         if (nElements == 0) break;
 
-        mask = @bitCast(@as(@Vector(4, i32), @intFromBool(count == entry)));
+        mask = @select(u32, count == entry, allOnes, zeroes);
         count +%= ones;
 
         r0 |= mask & pSrc[0];

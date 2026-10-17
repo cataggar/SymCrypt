@@ -77,34 +77,36 @@ pub export fn scTestRngReset(rng: *Rng, pbSeed: [*]const u8, cbSeed: usize) call
 
 pub export fn scTestRngByte(rng: *Rng) callconv(.c) u8 {
     h.check(rng.m_blockCtr != std.math.maxInt(u64), "Use of unseeded Rng object");
-    if (rng.m_bytesInBuf == 0) {
+    var bytesInBuf = rng.m_bytesInBuf;
+    if (bytesInBuf == 0 or bytesInBuf > 20) {
         var input: [28]u8 = undefined;
         @memcpy(input[0..20], &rng.m_seed);
         @memcpy(input[20..28], std.mem.asBytes(&rng.m_blockCtr));
         SymCryptSha1(&input, input.len, &rng.m_buf);
         rng.m_blockCtr +%= 1;
-        rng.m_bytesInBuf = 20;
+        bytesInBuf = 20;
     }
 
-    const res = rng.m_buf[20 - rng.m_bytesInBuf];
-    rng.m_bytesInBuf -= 1;
+    const res = rng.m_buf[20 - bytesInBuf];
+    rng.m_bytesInBuf = bytesInBuf -% 1;
     return res;
 }
 
 pub export fn scTestRngUint32(rng: *Rng) callconv(.c) u32 {
     h.check(rng.m_blockCtr != std.math.maxInt(u64), "Use of unseeded Rng object");
-    if (rng.m_bytesInBuf < 4) {
+    var bytesInBuf = rng.m_bytesInBuf;
+    if (bytesInBuf < 4 or bytesInBuf > 20) {
         var input: [28]u8 = undefined;
         @memcpy(input[0..20], &rng.m_seed);
         @memcpy(input[20..28], std.mem.asBytes(&rng.m_blockCtr));
         SymCryptSha1(&input, input.len, &rng.m_buf);
         rng.m_blockCtr +%= 1;
-        rng.m_bytesInBuf = 20;
+        bytesInBuf = 20;
     }
 
-    const idx = 20 - rng.m_bytesInBuf;
+    const idx = 20 - bytesInBuf;
     const res = std.mem.readInt(u32, rng.m_buf[idx..][0..4], .little);
-    rng.m_bytesInBuf -= 4;
+    rng.m_bytesInBuf = bytesInBuf -% 4;
     return res;
 }
 
