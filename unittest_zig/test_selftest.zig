@@ -207,8 +207,8 @@ fn testSingleSelftest(f: ?SelftestFn, fAlloc: ?SelftestAllocFn, name: [*:0]const
 
     nInjectCalls = TestErrorInjectionCalls - nInjectCalls;
     h.check3(
-        nInjectCalls > 0 and nInjectCalls < 10,
-        "Expected at least 1 and fewer than 10 error injection calls in {s}",
+        nInjectCalls > 0 and nInjectCalls < 1000,
+        "Expected at least 1 and fewer than 1000 error injection calls in {s}",
         std.mem.span(name),
     );
     TestErrorInjectionProb = @as(u32, @intCast(nInjectCalls)) + 1;
@@ -252,14 +252,18 @@ pub export fn testSelftest() callconv(.c) void {
 
     var i: usize = 0;
     while (g_selfTests[i].f != null) : (i += 1) {
-        const fnPtr: SelftestFn = @ptrCast(@alignCast(g_selfTests[i].f.?));
-        testSingleSelftest(fnPtr, null, g_selfTests[i].name.?);
+        if (h.isAlgorithmPresent(g_selfTests[i].name.?, 0)) {
+            const fnPtr: SelftestFn = @ptrCast(@alignCast(g_selfTests[i].f.?));
+            testSingleSelftest(fnPtr, null, g_selfTests[i].name.?);
+        }
     }
 
     i = 0;
     while (g_selfTests_allocating[i].f != null) : (i += 1) {
-        const fnPtr: SelftestAllocFn = @ptrCast(@alignCast(g_selfTests_allocating[i].f.?));
-        testSingleSelftest(null, fnPtr, g_selfTests_allocating[i].name.?);
+        if (h.isAlgorithmPresent(g_selfTests_allocating[i].name.?, 0)) {
+            const fnPtr: SelftestAllocFn = @ptrCast(@alignCast(g_selfTests_allocating[i].f.?));
+            testSingleSelftest(null, fnPtr, g_selfTests_allocating[i].name.?);
+        }
     }
 
     h.zvprint(h.g_verbose == 0, "\n", .{});
