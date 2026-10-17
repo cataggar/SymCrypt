@@ -27,10 +27,7 @@ const unittest_cpp_sources: []const []const u8 = &.{
     "perf.cpp",
     "perfPrint.cpp",
     "testAccessors.cpp",
-    "testAesCtrDrbg.cpp",
     "testArithmetic.cpp",
-    "testAuthEnc.cpp",
-    "testBlockCiphers.cpp",
     "testCompositeHelpers.cpp",
     "testDh.cpp",
     "testDsa.cpp",
@@ -39,10 +36,8 @@ const unittest_cpp_sources: []const []const u8 = &.{
     "testHbs.cpp",
     "testKem.cpp",
     "testHpke.cpp",
-    "testKeyWrap.cpp",
     "testMontgomery.cpp",
     "testMultiThread.cpp",
-    "testPaddingPkcs7.cpp",
     "testRsaEnc.cpp",
     "testRsaSign.cpp",
     "testPqDsa.cpp",
@@ -51,10 +46,7 @@ const unittest_cpp_sources: []const []const u8 = &.{
     "testSelftest.cpp",
     "testServiceIndicator.cpp",
     "testStatusIndicator.cpp",
-    "testStreamCipher.cpp",
-    "testTlsCbcHmac.cpp",
     "testWipe.cpp",
-    "testXts.cpp",
 };
 
 const kat_file_names: []const []const u8 = &.{

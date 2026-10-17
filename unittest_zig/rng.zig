@@ -10,6 +10,36 @@ pub const Rng = extern struct {
     m_blockCtr: u64,
     m_bytesInBuf: usize,
     m_buf: [20]u8,
+
+    pub fn byte(self: *Rng) u8 {
+        return scTestRngByte(self);
+    }
+
+    pub fn uint32(self: *Rng) u32 {
+        return scTestRngUint32(self);
+    }
+
+    pub fn sizet(self: *Rng, upb: usize) usize {
+        return scTestRngSizet(self, upb);
+    }
+
+    pub fn sizetRange(self: *Rng, min: usize, upb: usize) usize {
+        return scTestRngSizetRange(self, min, upb);
+    }
+
+    pub fn sizetNonUniform(self: *Rng, upb: usize, uniformLimit: usize, logIncrease: u32) usize {
+        return scTestRngSizetNonUniform(self, upb, uniformLimit, logIncrease);
+    }
+
+    pub fn randomSubRange(self: *Rng, bufSize: usize, pStart: *usize, pLen: *usize) void {
+        scTestRngRandomSubRange(self, bufSize, pStart, pLen);
+    }
+
+    pub fn bytes(self: *Rng, buf: []u8) void {
+        for (buf) |*b| {
+            b.* = scTestRngByte(self);
+        }
+    }
 };
 
 pub export var g_rng: Rng = .{

@@ -18,6 +18,14 @@ pub const test_customizable_xof = @import("test_customizable_xof.zig");
 pub const test_kmac = @import("test_kmac.zig");
 pub const test_mac = @import("test_mac.zig");
 pub const test_kdf = @import("test_kdf.zig");
+pub const test_block_ciphers = @import("test_block_ciphers.zig");
+pub const test_auth_enc = @import("test_auth_enc.zig");
+pub const test_stream_cipher = @import("test_stream_cipher.zig");
+pub const test_xts = @import("test_xts.zig");
+pub const test_key_wrap = @import("test_key_wrap.zig");
+pub const test_padding_pkcs7 = @import("test_padding_pkcs7.zig");
+pub const test_tls_cbc_hmac = @import("test_tls_cbc_hmac.zig");
+pub const test_aes_ctr_drbg = @import("test_aes_ctr_drbg.zig");
 
 extern fn scTestCppMain(argc: c_int, argv: [*][*:0]u8) callconv(.c) c_int;
 
@@ -43,4 +51,12 @@ comptime {
     _ = test_kmac;
     _ = test_mac;
     _ = test_kdf;
+    _ = test_block_ciphers;
+    _ = test_auth_enc;
+    _ = test_stream_cipher;
+    _ = test_xts;
+    _ = test_key_wrap;
+    _ = test_padding_pkcs7;
+    _ = test_tls_cbc_hmac;
+    _ = test_aes_ctr_drbg;
 }

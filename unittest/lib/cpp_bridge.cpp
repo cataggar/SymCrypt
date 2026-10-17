@@ -981,6 +981,482 @@ scTestClearAndFreeAlgImps()
     }
 }
 
+UINT32
+scTestIsAlgorithmPresent( const char * name_ptr, size_t name_len, UINT32 isPrefix )
+{
+    return (UINT32)isAlgorithmPresent( String( name_ptr, name_len ), (BOOL)isPrefix );
+}
+
+void
+scTestResultMergeAddAlgImp( void * mergeHandle, void * pAlgImpVoid, const BYTE * pbData, size_t cbData )
+{
+    AlgorithmImplementation * pAlgImp = (AlgorithmImplementation *)pAlgImpVoid;
+    scTestResultMergeAddResult(
+        mergeHandle,
+        pAlgImp,
+        pAlgImp->m_implementationName.c_str(),
+        pAlgImp->m_algorithmName.c_str(),
+        &pAlgImp->m_nResults,
+        &pAlgImp->m_nErrorDisagreeWithMajority,
+        &pAlgImp->m_nErrorNoMajority,
+        pbData,
+        cbData );
+}
+
+void
+scTestAlgImpIncKatFailure( void * pAlgImpVoid, ULONGLONG delta )
+{
+    ((AlgorithmImplementation *)pAlgImpVoid)->m_nErrorKatFailure += delta;
+}
+
+const char *
+scTestAlgImpName( const void * pAlgImpVoid, size_t * pLen )
+{
+    const AlgorithmImplementation * pAlgImp = (const AlgorithmImplementation *)pAlgImpVoid;
+    *pLen = pAlgImp->m_algorithmName.size();
+    return pAlgImp->m_algorithmName.data();
+}
+
+const char *
+scTestAlgImpModeName( const void * pAlgImpVoid, size_t * pLen )
+{
+    const AlgorithmImplementation * pAlgImp = (const AlgorithmImplementation *)pAlgImpVoid;
+    *pLen = pAlgImp->m_modeName.size();
+    return pAlgImp->m_modeName.data();
+}
+
+const char *
+scTestAlgImpImpName( const void * pAlgImpVoid, size_t * pLen )
+{
+    const AlgorithmImplementation * pAlgImp = (const AlgorithmImplementation *)pAlgImpVoid;
+    *pLen = pAlgImp->m_implementationName.size();
+    return pAlgImp->m_implementationName.data();
+}
+
+//
+// KAT item helpers for Zig test drivers
+//
+void
+scTestKatDestroy( KatData * pKat )
+{
+    delete pKat;
+}
+
+void
+scTestKatGetNextItem( KatData * pKat, void * pItem )
+{
+    pKat->getKatItem( (KAT_ITEM *)pItem );
+}
+
+void
+scTestKatReportWrongData(
+    const char * algName,
+    const char * dataDesc,
+    const BYTE * pbExpected,
+    size_t cbExpected,
+    const BYTE * pbActual,
+    size_t cbActual,
+    LONGLONG line )
+{
+    print( "\nWrong %s result (%s) in line %lld. \nExpected ", algName, dataDesc, line );
+    printHex( pbExpected, cbExpected );
+    print( "\nGot      " );
+    printHex( pbActual, cbActual );
+    iprint( "\n" );
+}
+
+void *
+scTestKatItemCreate()
+{
+    return new KAT_ITEM();
+}
+
+void
+scTestKatItemDestroy( void * pItem )
+{
+    delete (KAT_ITEM *)pItem;
+}
+
+int
+scTestKatItemType( const void * pItem )
+{
+    return (int)((const KAT_ITEM *)pItem)->type;
+}
+
+LONGLONG
+scTestKatItemLine( const void * pItem )
+{
+    return ((const KAT_ITEM *)pItem)->line;
+}
+
+const char *
+scTestKatItemCategory( const void * pItem, size_t * pLen )
+{
+    const KAT_ITEM * p = (const KAT_ITEM *)pItem;
+    *pLen = p->categoryName.size();
+    return p->categoryName.data();
+}
+
+size_t
+scTestKatItemDataCount( const void * pItem )
+{
+    return ((const KAT_ITEM *)pItem)->dataItems.size();
+}
+
+UINT32
+scTestKatIsFieldPresent( void * pItem, const char * name )
+{
+    return (UINT32)katIsFieldPresent( *(KAT_ITEM *)pItem, name );
+}
+
+LONGLONG
+scTestKatParseInteger( void * pItem, const char * name )
+{
+    return katParseInteger( *(KAT_ITEM *)pItem, name );
+}
+
+BYTE *
+scTestKatParseDataAlloc( void * pItem, const char * name, size_t * pOutLen )
+{
+    KAT_ITEM * p = (KAT_ITEM *)pItem;
+    const KAT_DATA_ITEM * pDataItem = findDataItem( *p, name );
+    CHECK4( pDataItem != NULL, "Could not find dataset field \"%s\" in dataset at line %lld", name, p->line );
+
+    return scTestKatParseDataRaw(
+        pDataItem->data.data(),
+        pDataItem->data.size(),
+        pDataItem->line,
+        pOutLen );
+}
+
+} // extern "C"
+
+template<typename AlgorithmType>
+static size_t
+scTestGetImpsByNameInternal( const char * algNamePtr, size_t algNameLen, void ** outImps, size_t maxImps )
+{
+    String algName( algNamePtr, algNameLen );
+    std::vector<AlgorithmType *> res;
+    getAllImplementations<AlgorithmType>( algName, &res );
+    CHECK( res.size() <= maxImps, "Too many implementations" );
+    for( size_t i = 0; i < res.size(); ++i )
+    {
+        outImps[i] = (void *)res[i];
+    }
+    return res.size();
+}
+
+static size_t
+scTestCopySizeSet( const std::set<SIZE_T> & s, size_t * outSizes, size_t maxSizes )
+{
+    CHECK( s.size() <= maxSizes, "Too many sizes in set" );
+    size_t idx = 0;
+    for( std::set<SIZE_T>::const_iterator i = s.begin(); i != s.end(); ++i )
+    {
+        outSizes[idx++] = *i;
+    }
+    return idx;
+}
+
+extern "C" {
+
+//
+// BlockCipherImplementation C bridge
+//
+size_t
+scTestGetBlockCipherImps( const char * algNamePtr, size_t algNameLen, void ** outImps, size_t maxImps )
+{
+    return scTestGetImpsByNameInternal<BlockCipherImplementation>( algNamePtr, algNameLen, outImps, maxImps );
+}
+
+size_t
+scTestBlockCipherMsgBlockLen( void * pImp )
+{
+    return ((BlockCipherImplementation *)pImp)->msgBlockLen();
+}
+
+size_t
+scTestBlockCipherChainBlockLen( void * pImp )
+{
+    return ((BlockCipherImplementation *)pImp)->chainBlockLen();
+}
+
+size_t
+scTestBlockCipherCoreBlockLen( void * pImp )
+{
+    return ((BlockCipherImplementation *)pImp)->coreBlockLen();
+}
+
+NTSTATUS
+scTestBlockCipherSetKey( void * pImp, const BYTE * pbKey, size_t cbKey )
+{
+    return ((BlockCipherImplementation *)pImp)->setKey( pbKey, cbKey );
+}
+
+void
+scTestBlockCipherEncrypt( void * pImp, BYTE * pbChain, size_t cbChain, const BYTE * pbSrc, BYTE * pbDst, size_t cbData )
+{
+    ((BlockCipherImplementation *)pImp)->encrypt( pbChain, cbChain, pbSrc, pbDst, cbData );
+}
+
+void
+scTestBlockCipherDecrypt( void * pImp, BYTE * pbChain, size_t cbChain, const BYTE * pbSrc, BYTE * pbDst, size_t cbData )
+{
+    ((BlockCipherImplementation *)pImp)->decrypt( pbChain, cbChain, pbSrc, pbDst, cbData );
+}
+
+//
+// AuthEncImplementation C bridge
+//
+size_t
+scTestGetAuthEncImps( const char * algNamePtr, size_t algNameLen, void ** outImps, size_t maxImps )
+{
+    return scTestGetImpsByNameInternal<AuthEncImplementation>( algNamePtr, algNameLen, outImps, maxImps );
+}
+
+size_t
+scTestAuthEncGetNonceSizes( void * pImp, size_t * outSizes, size_t maxSizes )
+{
+    return scTestCopySizeSet( ((AuthEncImplementation *)pImp)->getNonceSizes(), outSizes, maxSizes );
+}
+
+size_t
+scTestAuthEncGetTagSizes( void * pImp, size_t * outSizes, size_t maxSizes )
+{
+    return scTestCopySizeSet( ((AuthEncImplementation *)pImp)->getTagSizes(), outSizes, maxSizes );
+}
+
+size_t
+scTestAuthEncGetKeySizes( void * pImp, size_t * outSizes, size_t maxSizes )
+{
+    return scTestCopySizeSet( ((AuthEncImplementation *)pImp)->getKeySizes(), outSizes, maxSizes );
+}
+
+NTSTATUS
+scTestAuthEncSetKey( void * pImp, const BYTE * pbKey, size_t cbKey )
+{
+    return ((AuthEncImplementation *)pImp)->setKey( pbKey, cbKey );
+}
+
+void
+scTestAuthEncSetTotalCbData( void * pImp, size_t cbData )
+{
+    ((AuthEncImplementation *)pImp)->setTotalCbData( cbData );
+}
+
+NTSTATUS
+scTestAuthEncEncrypt(
+    void * pImp,
+    const BYTE * pbNonce, size_t cbNonce,
+    const BYTE * pbAuthData, size_t cbAuthData,
+    const BYTE * pbSrc, BYTE * pbDst, size_t cbData,
+    BYTE * pbTag, size_t cbTag,
+    UINT32 flags )
+{
+    return ((AuthEncImplementation *)pImp)->encrypt(
+        pbNonce, cbNonce, pbAuthData, cbAuthData, pbSrc, pbDst, cbData, pbTag, cbTag, flags );
+}
+
+NTSTATUS
+scTestAuthEncDecrypt(
+    void * pImp,
+    const BYTE * pbNonce, size_t cbNonce,
+    const BYTE * pbAuthData, size_t cbAuthData,
+    const BYTE * pbSrc, BYTE * pbDst, size_t cbData,
+    const BYTE * pbTag, size_t cbTag,
+    UINT32 flags )
+{
+    return ((AuthEncImplementation *)pImp)->decrypt(
+        pbNonce, cbNonce, pbAuthData, cbAuthData, pbSrc, pbDst, cbData, pbTag, cbTag, flags );
+}
+
+//
+// StreamCipherImplementation C bridge
+//
+size_t
+scTestGetStreamCipherImps( const char * algNamePtr, size_t algNameLen, void ** outImps, size_t maxImps )
+{
+    return scTestGetImpsByNameInternal<StreamCipherImplementation>( algNamePtr, algNameLen, outImps, maxImps );
+}
+
+size_t
+scTestStreamCipherGetNonceSizes( void * pImp, size_t * outSizes, size_t maxSizes )
+{
+    return scTestCopySizeSet( ((StreamCipherImplementation *)pImp)->getNonceSizes(), outSizes, maxSizes );
+}
+
+size_t
+scTestStreamCipherGetKeySizes( void * pImp, size_t * outSizes, size_t maxSizes )
+{
+    return scTestCopySizeSet( ((StreamCipherImplementation *)pImp)->getKeySizes(), outSizes, maxSizes );
+}
+
+NTSTATUS
+scTestStreamCipherSetKey( void * pImp, const BYTE * pbKey, size_t cbKey )
+{
+    return ((StreamCipherImplementation *)pImp)->setKey( pbKey, cbKey );
+}
+
+NTSTATUS
+scTestStreamCipherSetNonce( void * pImp, const BYTE * pbNonce, size_t cbNonce )
+{
+    return ((StreamCipherImplementation *)pImp)->setNonce( pbNonce, cbNonce );
+}
+
+UINT32
+scTestStreamCipherIsRandomAccess( void * pImp )
+{
+    return (UINT32)((StreamCipherImplementation *)pImp)->isRandomAccess();
+}
+
+void
+scTestStreamCipherSetOffset( void * pImp, UINT64 offset )
+{
+    ((StreamCipherImplementation *)pImp)->setOffset( offset );
+}
+
+void
+scTestStreamCipherEncrypt( void * pImp, const BYTE * pbSrc, BYTE * pbDst, size_t cbData )
+{
+    ((StreamCipherImplementation *)pImp)->encrypt( pbSrc, pbDst, cbData );
+}
+
+//
+// XtsImplementation C bridge
+//
+size_t
+scTestGetXtsImps( const char * algNamePtr, size_t algNameLen, void ** outImps, size_t maxImps )
+{
+    return scTestGetImpsByNameInternal<XtsImplementation>( algNamePtr, algNameLen, outImps, maxImps );
+}
+
+NTSTATUS
+scTestXtsSetKey( void * pImp, const BYTE * pbKey, size_t cbKey, UINT32 flags )
+{
+    return ((XtsImplementation *)pImp)->setKey( pbKey, cbKey, flags );
+}
+
+NTSTATUS
+scTestXtsEncrypt( void * pImp, size_t cbDataUnit, ULONGLONG tweak, const BYTE * pbSrc, BYTE * pbDst, size_t cbData )
+{
+    return ((XtsImplementation *)pImp)->encrypt( cbDataUnit, tweak, pbSrc, pbDst, cbData );
+}
+
+NTSTATUS
+scTestXtsDecrypt( void * pImp, size_t cbDataUnit, ULONGLONG tweak, const BYTE * pbSrc, BYTE * pbDst, size_t cbData )
+{
+    return ((XtsImplementation *)pImp)->decrypt( cbDataUnit, tweak, pbSrc, pbDst, cbData );
+}
+
+NTSTATUS
+scTestXtsEncryptWith128bTweak( void * pImp, size_t cbDataUnit, const BYTE * pbTweak, const BYTE * pbSrc, BYTE * pbDst, size_t cbData )
+{
+    return ((XtsImplementation *)pImp)->encryptWith128bTweak( cbDataUnit, pbTweak, pbSrc, pbDst, cbData );
+}
+
+NTSTATUS
+scTestXtsDecryptWith128bTweak( void * pImp, size_t cbDataUnit, const BYTE * pbTweak, const BYTE * pbSrc, BYTE * pbDst, size_t cbData )
+{
+    return ((XtsImplementation *)pImp)->decryptWith128bTweak( cbDataUnit, pbTweak, pbSrc, pbDst, cbData );
+}
+
+//
+// KeyWrapImplementation C bridge
+//
+size_t
+scTestGetKeyWrapImps( const char * algNamePtr, size_t algNameLen, void ** outImps, size_t maxImps )
+{
+    return scTestGetImpsByNameInternal<KeyWrapImplementation>( algNamePtr, algNameLen, outImps, maxImps );
+}
+
+size_t
+scTestKeyWrapGetMinPlaintextSize( void * pImp )
+{
+    return ((KeyWrapImplementation *)pImp)->getMinPlaintextSize();
+}
+
+size_t
+scTestKeyWrapGetMaxPlaintextSize( void * pImp )
+{
+    return ((KeyWrapImplementation *)pImp)->getMaxPlaintextSize();
+}
+
+size_t
+scTestKeyWrapGetPlaintextSizeIncrement( void * pImp )
+{
+    return ((KeyWrapImplementation *)pImp)->getPlaintextSizeIncrement();
+}
+
+size_t
+scTestKeyWrapGetKeySizes( void * pImp, size_t * outSizes, size_t maxSizes )
+{
+    return scTestCopySizeSet( ((KeyWrapImplementation *)pImp)->getKeySizes(), outSizes, maxSizes );
+}
+
+NTSTATUS
+scTestKeyWrapSetKey( void * pImp, const BYTE * pbKey, size_t cbKey )
+{
+    return ((KeyWrapImplementation *)pImp)->setKey( pbKey, cbKey );
+}
+
+NTSTATUS
+scTestKeyWrapEncrypt( void * pImp, const BYTE * pbSrc, size_t cbSrc, BYTE * pbDst, size_t cbDst, size_t * pcbResult )
+{
+    return ((KeyWrapImplementation *)pImp)->encrypt( pbSrc, cbSrc, pbDst, cbDst, pcbResult );
+}
+
+NTSTATUS
+scTestKeyWrapDecrypt( void * pImp, const BYTE * pbSrc, size_t cbSrc, BYTE * pbDst, size_t cbDst, size_t * pcbResult )
+{
+    return ((KeyWrapImplementation *)pImp)->decrypt( pbSrc, cbSrc, pbDst, cbDst, pcbResult );
+}
+
+//
+// TlsCbcHmacImplementation C bridge
+//
+size_t
+scTestGetTlsCbcHmacImps( const char * algNamePtr, size_t algNameLen, void ** outImps, size_t maxImps )
+{
+    return scTestGetImpsByNameInternal<TlsCbcHmacImplementation>( algNamePtr, algNameLen, outImps, maxImps );
+}
+
+NTSTATUS
+scTestTlsCbcHmacVerify(
+    void * pImp,
+    const BYTE * pbKey, size_t cbKey,
+    const BYTE * pbHeader, size_t cbHeader,
+    const BYTE * pbData, size_t cbData )
+{
+    return ((TlsCbcHmacImplementation *)pImp)->verify( pbKey, cbKey, pbHeader, cbHeader, pbData, cbData );
+}
+
+//
+// RngSp800_90Implementation C bridge
+//
+size_t
+scTestGetRngSp800_90Imps( const char * algNamePtr, size_t algNameLen, void ** outImps, size_t maxImps )
+{
+    return scTestGetImpsByNameInternal<RngSp800_90Implementation>( algNamePtr, algNameLen, outImps, maxImps );
+}
+
+NTSTATUS
+scTestRngSp800_90Instantiate( void * pImp, const BYTE * pbEntropy, size_t cbEntropy )
+{
+    return ((RngSp800_90Implementation *)pImp)->instantiate( pbEntropy, cbEntropy );
+}
+
+NTSTATUS
+scTestRngSp800_90Reseed( void * pImp, const BYTE * pbEntropy, size_t cbEntropy )
+{
+    return ((RngSp800_90Implementation *)pImp)->reseed( pbEntropy, cbEntropy );
+}
+
+void
+scTestRngSp800_90Generate( void * pImp, BYTE * pbData, size_t cbData )
+{
+    ((RngSp800_90Implementation *)pImp)->generate( pbData, cbData );
+}
+
 } // extern "C"
 
 VOID
@@ -1152,22 +1628,6 @@ void
 scTestAlgImpAddErrorKatFailure( void * pImp, ULONGLONG delta )
 {
     static_cast<AlgorithmImplementation *>( pImp )->m_nErrorKatFailure += delta;
-}
-
-void
-scTestResultMergeAddAlgImp( void * resMergeHandle, void * pImp, PCBYTE pbData, SIZE_T cbData )
-{
-    AlgorithmImplementation * pAlgImp = static_cast<AlgorithmImplementation *>( pImp );
-    scTestResultMergeAddResult(
-        resMergeHandle,
-        pAlgImp,
-        pAlgImp->m_implementationName.c_str(),
-        pAlgImp->m_algorithmName.c_str(),
-        &pAlgImp->m_nResults,
-        &pAlgImp->m_nErrorDisagreeWithMajority,
-        &pAlgImp->m_nErrorNoMajority,
-        pbData,
-        cbData );
 }
 
 // HashImplementation wrappers
