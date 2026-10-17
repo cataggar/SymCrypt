@@ -47,11 +47,6 @@ const x86_specialized_c_sources: []const []const u8 = &.{
     "aes-xmm.c",
     "aes-ymm.c",
     "aes-zmm.c",
-    "sha256Par-ymm.c",
-    "sha512Par-ymm.c",
-    "sha256-xmm.c",
-    "sha256-ymm.c",
-    "sha512-ymm.c",
 };
 
 const unittest_cpp_sources: []const []const u8 = &.{
@@ -483,26 +478,6 @@ fn addSymCryptCommonSources(
         mod.addCSourceFile(.{
             .file = b.path("lib/aes-zmm.c"),
             .flags = getCFlags(b, target, optimize, targetFeatureFlags(&.{ "+sse4.1", "+sse4.2", "+avx", "+avx2", "+f16c", "+avx512f", "+avx512bw", "+avx512dq", "+avx512vl", "+evex512", "+vaes", "+vpclmulqdq" })) catch @panic("OOM"),
-        });
-        mod.addCSourceFile(.{
-            .file = b.path("lib/sha256Par-ymm.c"),
-            .flags = getCFlags(b, target, optimize, targetFeatureFlags(&.{ "+sse4.1", "+sse4.2", "+avx", "+avx2" })) catch @panic("OOM"),
-        });
-        mod.addCSourceFile(.{
-            .file = b.path("lib/sha512Par-ymm.c"),
-            .flags = getCFlags(b, target, optimize, targetFeatureFlags(&.{ "+sse4.1", "+sse4.2", "+avx", "+avx2" })) catch @panic("OOM"),
-        });
-        mod.addCSourceFile(.{
-            .file = b.path("lib/sha256-xmm.c"),
-            .flags = getCFlags(b, target, optimize, targetFeatureFlags(&.{"+ssse3"})) catch @panic("OOM"),
-        });
-        mod.addCSourceFile(.{
-            .file = b.path("lib/sha256-ymm.c"),
-            .flags = getCFlags(b, target, optimize, targetFeatureFlags(&.{ "+sse4.1", "+sse4.2", "+avx", "+avx2", "+bmi2" })) catch @panic("OOM"),
-        });
-        mod.addCSourceFile(.{
-            .file = b.path("lib/sha512-ymm.c"),
-            .flags = getCFlags(b, target, optimize, targetFeatureFlags(&.{ "+sse4.1", "+sse4.2", "+avx", "+avx2", "+bmi2" })) catch @panic("OOM"),
         });
     } else {
         mod.addCSourceFiles(.{
