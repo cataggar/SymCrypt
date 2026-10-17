@@ -137,18 +137,13 @@ pub export fn SymCryptFipsGetSelftestsPerformed() callconv(SYMCRYPT_CALL) UINT32
 // Opaque / Partial Internal Asymmetric Types & Extern Declarations
 // ==============================================================================================
 
-pub const SYMCRYPT_DLGROUP = opaque {};
-pub const PSYMCRYPT_DLGROUP = *SYMCRYPT_DLGROUP;
-pub const PCSYMCRYPT_DLGROUP = *const SYMCRYPT_DLGROUP;
+pub const SYMCRYPT_DLGROUP = types.SYMCRYPT_DLGROUP;
+pub const PSYMCRYPT_DLGROUP = types.PSYMCRYPT_DLGROUP;
+pub const PCSYMCRYPT_DLGROUP = types.PCSYMCRYPT_DLGROUP;
 
-pub const SYMCRYPT_DLKEY = extern struct {
-    fAlgorithmInfo: UINT32 align(SYMCRYPT_ASYM_ALIGN_VALUE),
-    fHasPrivateKey: BOOLEAN,
-    fPrivateModQ: BOOLEAN,
-    nBitsPriv: UINT32,
-};
-pub const PSYMCRYPT_DLKEY = *SYMCRYPT_DLKEY;
-pub const PCSYMCRYPT_DLKEY = *const SYMCRYPT_DLKEY;
+pub const SYMCRYPT_DLKEY = types.SYMCRYPT_DLKEY;
+pub const PSYMCRYPT_DLKEY = types.PSYMCRYPT_DLKEY;
+pub const PCSYMCRYPT_DLKEY = types.PCSYMCRYPT_DLKEY;
 
 pub const SYMCRYPT_ECURVE = opaque {};
 pub const PSYMCRYPT_ECURVE = *SYMCRYPT_ECURVE;
@@ -182,14 +177,8 @@ pub const SYMCRYPT_LMS_KEY = opaque {};
 pub const PSYMCRYPT_LMS_KEY = *SYMCRYPT_LMS_KEY;
 pub const PCSYMCRYPT_LMS_KEY = *const SYMCRYPT_LMS_KEY;
 
-pub const SYMCRYPT_DLGROUP_DH_SAFEPRIME_PARAMS = extern struct {
-    eDhSafePrimeType: SYMCRYPT_DLGROUP_DH_SAFEPRIMETYPE,
-    pcbPrimeP: PCBYTE,
-    nBitsOfP: UINT32,
-    nMinBitsPriv: UINT32,
-    nDefaultBitsPriv: UINT32,
-};
-pub const PCSYMCRYPT_DLGROUP_DH_SAFEPRIME_PARAMS = *const SYMCRYPT_DLGROUP_DH_SAFEPRIME_PARAMS;
+pub const SYMCRYPT_DLGROUP_DH_SAFEPRIME_PARAMS = types.SYMCRYPT_DLGROUP_DH_SAFEPRIME_PARAMS;
+pub const PCSYMCRYPT_DLGROUP_DH_SAFEPRIME_PARAMS = types.PCSYMCRYPT_DLGROUP_DH_SAFEPRIME_PARAMS;
 
 extern const SymCryptDlgroupDhSafePrimeParamsModp2048: PCSYMCRYPT_DLGROUP_DH_SAFEPRIME_PARAMS;
 extern const SymCryptEcurveParamsNistP256: PCSYMCRYPT_ECURVE_PARAMS;
