@@ -6,10 +6,6 @@ const symcrypt_version = std.SemanticVersion{
     .patch = 0,
 };
 
-const common_c_sources: []const []const u8 = &.{};
-
-const x86_specialized_c_sources: []const []const u8 = &.{};
-
 const kat_file_names: []const []const u8 = &.{
     "kat_IEEE802_11SaeCustom.dat",
     "kat_authenc.dat",
@@ -70,7 +66,7 @@ pub fn build(b: *std.Build) void {
         else => false,
     };
 
-    const generated_headers = generateHeaders(b, os_tag == .windows);
+    const generated_headers = generateHeaders(b);
 
     const build_options = b.addOptions();
     build_options.addOption(bool, "use_asm", effective_use_asm);
@@ -86,7 +82,7 @@ pub fn build(b: *std.Build) void {
         .pic = if (os_tag == .windows) null else true,
     });
     common_mod.addImport("build_options", build_options_mod);
-    configureModuleCommon(b, common_mod, generated_headers, target, optimize, effective_use_asm, fips_build);
+    configureModuleCommon(b, common_mod, generated_headers);
     addSymCryptCommonSources(b, common_mod, target, optimize, effective_use_asm);
 
     const symcrypt_lib = b.addLibrary(.{
@@ -136,15 +132,7 @@ pub fn build(b: *std.Build) void {
                 .root_source_file = b.path(rel_path),
             });
         }
-        configureModuleCommon(b, unittest_mod, generated_headers, target, optimize, effective_use_asm, fips_build);
-        unittest_mod.addIncludePath(b.path("inc/symcrypt_plus"));
-        unittest_mod.addIncludePath(b.path("lib_plus"));
-        unittest_mod.addIncludePath(b.path("unittest/inc"));
-        unittest_mod.addIncludePath(b.path("unittest/lib"));
-        unittest_mod.addCMacro("INCLUDE_IMPL_CAPI", "0");
-        unittest_mod.addCMacro("INCLUDE_IMPL_CNG", "0");
-        unittest_mod.addCMacro("INCLUDE_IMPL_MSBIGNUM", "0");
-        unittest_mod.addCMacro("INCLUDE_IMPL_RSA32", "0");
+        configureModuleCommon(b, unittest_mod, generated_headers);
 
         if (effective_use_asm and arch == .x86_64) {
             const asm_flags = getAsmFlags(b, target, optimize) catch @panic("OOM");
@@ -222,20 +210,8 @@ pub fn build(b: *std.Build) void {
     }
 }
 
-fn generateHeaders(b: *std.Build, is_windows: bool) *std.Build.Step.WriteFile {
+fn generateHeaders(b: *std.Build) *std.Build.Step.WriteFile {
     const wf = b.addWriteFiles();
-
-    if (is_windows) {
-        _ = wf.add("Windows.h",
-            \\#pragma once
-            \\#define __C_ASSERT__ __WINNT_C_ASSERT__
-            \\#include <windows.h>
-            \\#undef __C_ASSERT__
-            \\#undef C_ASSERT
-            \\#undef FORCEINLINE
-            \\
-        );
-    }
 
     const shared_inc = std.fmt.allocPrint(
         b.allocator,
@@ -254,19 +230,6 @@ fn generateHeaders(b: *std.Build, is_windows: bool) *std.Build.Step.WriteFile {
     ) catch @panic("OOM");
     _ = wf.add("symcrypt_internal_shared.inc", shared_inc);
 
-    const build_info =
-        \\#include "symcrypt_internal_shared.inc"
-        \\
-        \\#define _SYMCRYPT_STRING_INT(a) #a
-        \\#define _SYMCRYPT_STRING(a) _SYMCRYPT_STRING_INT(a)
-        \\#define SYMCRYPT_BUILD_INFO_BRANCH    "zig"
-        \\#define SYMCRYPT_BUILD_INFO_COMMIT    "zig-build"
-        \\#define SYMCRYPT_BUILD_INFO_VERSION   _SYMCRYPT_STRING(SYMCRYPT_CODE_VERSION_API) "." _SYMCRYPT_STRING(SYMCRYPT_CODE_VERSION_MINOR) "." _SYMCRYPT_STRING(SYMCRYPT_CODE_VERSION_PATCH)
-        \\#define SYMCRYPT_BUILD_INFO_TIMESTAMP "1970-01-01T00:00:00"
-        \\
-    ;
-    _ = wf.add("buildInfo.h", build_info);
-
     return wf;
 }
 
@@ -274,26 +237,10 @@ fn configureModuleCommon(
     b: *std.Build,
     mod: *std.Build.Module,
     generated_headers: *std.Build.Step.WriteFile,
-    target: std.Build.ResolvedTarget,
-    optimize: std.builtin.Optimize,
-    use_asm: bool,
-    fips_build: bool,
 ) void {
     mod.addIncludePath(b.path("inc"));
     mod.addIncludePath(b.path("lib"));
     mod.addIncludePath(generated_headers.getDirectory());
-
-    if (!use_asm) {
-        mod.addCMacro("SYMCRYPT_IGNORE_PLATFORM", "1");
-    }
-    if (fips_build) {
-        mod.addCMacro("SYMCRYPT_MODULE_DO_FIPS_SELFTESTS", "1");
-        mod.addCMacro("SYMCRYPT_MODULE_USE_FIPS_ENTROPY", "1");
-    }
-    if (optimize == .debug) {
-        mod.addCMacro("DBG", "1");
-    }
-    _ = target;
 }
 
 fn addSymCryptCommonSources(
@@ -303,13 +250,6 @@ fn addSymCryptCommonSources(
     optimize: std.builtin.Optimize,
     use_asm: bool,
 ) void {
-    const base_c_flags = getCFlags(b, target, optimize, &.{}) catch @panic("OOM");
-    mod.addCSourceFiles(.{
-        .root = b.path("lib"),
-        .files = common_c_sources,
-        .flags = base_c_flags,
-    });
-
     const arch = target.result.cpu.arch;
     const os_tag = target.result.os.tag;
 
@@ -385,117 +325,6 @@ fn processSymCryptAsm(
         run.addFileInput(b.path(dep));
     }
     return run.addOutputFileArg(output_name);
-}
-
-fn targetFeatureFlags(comptime features: []const []const u8) *const [features.len * 4][]const u8 {
-    return comptime blk: {
-        var result: [features.len * 4][]const u8 = undefined;
-        for (features, 0..) |feat, i| {
-            result[i * 4 + 0] = "-Xclang";
-            result[i * 4 + 1] = "-target-feature";
-            result[i * 4 + 2] = "-Xclang";
-            result[i * 4 + 3] = feat;
-        }
-        const final = result;
-        break :blk &final;
-    };
-}
-
-fn appendCommonFlags(
-    list: *std.ArrayListUnmanaged([]const u8),
-    gpa: std.mem.Allocator,
-    target: std.Build.ResolvedTarget,
-    optimize: std.builtin.Optimize,
-) !void {
-    try list.appendSlice(gpa, &.{
-        "-Wno-unknown-pragmas",
-        "-Werror",
-        "-Wno-deprecated-declarations",
-        "-Wno-deprecated",
-        "-Wno-multichar",
-        "-fno-builtin-bcmp",
-        "-fms-extensions",
-        "-fno-unroll-loops",
-        "-fno-sanitize=alignment,null,object-size,function",
-        "-fno-sanitize-trap=alignment,null,object-size,function",
-    });
-
-    const arch = target.result.cpu.arch;
-    const os_tag = target.result.os.tag;
-    if (os_tag != .macos and os_tag != .windows) {
-        try list.append(gpa, "-fno-plt");
-    }
-    if (arch == .x86_64 or arch == .x86) {
-        try list.appendSlice(gpa, targetFeatureFlags(&.{
-            "+sse2",
-            "+sse3",
-            "+ssse3",
-            "+xsave",
-            "+aes",
-            "+pclmul",
-            "+sha",
-            "+rdrnd",
-            "+rdseed",
-        }));
-    } else if (arch == .aarch64) {
-        if (os_tag != .macos) {
-            try list.appendSlice(gpa, &.{
-                "-flax-vector-conversions",
-                "-mno-outline-atomics",
-            });
-        }
-        try list.appendSlice(gpa, targetFeatureFlags(&.{
-            "+neon",
-            "+aes",
-            "+sha2",
-        }));
-    } else if (arch == .arm) {
-        try list.appendSlice(gpa, &.{
-            "-march=armv7-a+neon-vfpv4",
-            "-flax-vector-conversions",
-            "-mfpu=neon",
-            "-mno-unaligned-access",
-        });
-    }
-
-    if (arch == .x86_64 and optimize != .debug) {
-        try list.appendSlice(gpa, &.{
-            "-mllvm",
-            "-x86-speculative-load-hardening",
-        });
-    }
-}
-
-fn getCFlags(
-    b: *std.Build,
-    target: std.Build.ResolvedTarget,
-    optimize: std.builtin.Optimize,
-    extra: []const []const u8,
-) ![]const []const u8 {
-    var list: std.ArrayListUnmanaged([]const u8) = .empty;
-    try list.appendSlice(b.allocator, &.{
-        "-std=c11",
-        "-Wno-incompatible-pointer-types",
-    });
-    try appendCommonFlags(&list, b.allocator, target, optimize);
-    try list.appendSlice(b.allocator, extra);
-    return list.toOwnedSlice(b.allocator);
-}
-
-fn getCxxFlags(
-    b: *std.Build,
-    target: std.Build.ResolvedTarget,
-    optimize: std.builtin.Optimize,
-    extra: []const []const u8,
-) ![]const []const u8 {
-    var list: std.ArrayListUnmanaged([]const u8) = .empty;
-    try list.appendSlice(b.allocator, &.{
-        "-std=c++17",
-        "-Wno-write-strings",
-    });
-    try appendCommonFlags(&list, b.allocator, target, optimize);
-    try list.appendSlice(b.allocator, extra);
-    return list.toOwnedSlice(b.allocator);
 }
 
 fn getAsmFlags(
