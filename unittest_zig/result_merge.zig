@@ -4,6 +4,37 @@ const std = @import("std");
 const h = @import("main_harness.zig");
 
 extern fn SymCryptWipe(pbData: [*]u8, cbData: usize) callconv(.c) void;
+extern fn scTestResultMergeAddAlgImp(resMergeHandle: ?*anyopaque, pImp: *anyopaque, pbData: [*]const u8, cbData: usize) callconv(.c) void;
+
+pub const ResultMerge = struct {
+    handle: ?*anyopaque = null,
+
+    pub fn init() ResultMerge {
+        return .{ .handle = scTestResultMergeCreate() };
+    }
+
+    pub fn deinit(self: *ResultMerge) void {
+        if (self.handle) |h_ptr| {
+            scTestResultMergeDestroy(h_ptr);
+            self.handle = null;
+        }
+    }
+
+    pub fn addResult(self: *ResultMerge, pImp: *anyopaque, data: []const u8) void {
+        if (self.handle == null) {
+            self.handle = scTestResultMergeCreate();
+        }
+        scTestResultMergeAddAlgImp(self.handle, pImp, data.ptr, data.len);
+    }
+
+    pub fn getResult(self: *ResultMerge, pbResult: []u8) void {
+        scTestResultMergeGetResult(self.handle, pbResult.ptr, pbResult.len, 1);
+    }
+
+    pub fn getResultEx(self: *ResultMerge, pbResult: []u8, countInvocation: bool) void {
+        scTestResultMergeGetResult(self.handle, pbResult.ptr, pbResult.len, @intFromBool(countInvocation));
+    }
+};
 
 const SingleResult = struct {
     pAlgImp: *anyopaque,
@@ -30,8 +61,6 @@ const ResultMergeState = struct {
         self.results.deinit(std.heap.c_allocator);
     }
 };
-
-pub const ResultMerge = anyopaque;
 
 pub export fn scTestResultMergeCreate() callconv(.c) ?*anyopaque {
     const state = std.heap.c_allocator.create(ResultMergeState) catch h.fatal("Out of memory in scTestResultMergeCreate", .{});

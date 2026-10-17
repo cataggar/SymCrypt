@@ -1258,7 +1258,7 @@ extern UINT32 g_rc2EffectiveKeyLength;
 
 extern UINT32 g_cngKeySizeFlag;
 
-extern double g_tscFreq;
+extern "C" double g_tscFreq;
 
 extern BOOL g_sgx;
 
@@ -1500,6 +1500,7 @@ template< typename AlgType >
 std::unique_ptr<std::vector<AlgType *>> getAlgorithmsOfOneType( );
 
 
+extern "C" {
 extern BOOLEAN     TestSelftestsEnabled;
 extern BOOLEAN     TestSaveXmmEnabled;
 extern BOOLEAN     TestSaveYmmEnabled;
@@ -1511,6 +1512,7 @@ extern ULONGLONG   TestErrorInjectionCalls;
 extern UINT32      TestErrorInjectionProb;
 
 extern BYTE TestErrorInjectionSeed[ SYMCRYPT_SHA1_RESULT_SIZE ];
+}
 
 #if SYMCRYPT_CPU_X86 | SYMCRYPT_CPU_AMD64
 //
@@ -1529,10 +1531,10 @@ VOID SYMCRYPT_CALL SymCryptEnvUmRestoreZmmRegistersAsm( __m512i * buffer );
 #endif
 
 
+extern "C" {
 VOID
 testWipe();
 
-extern "C" {
 VOID
 testUtil();
 
@@ -1556,10 +1558,10 @@ testKmacAlgorithms();
 
 VOID
 testKdfAlgorithms();
-}
 
 VOID
 testDataAccessors();
+}
 
 extern "C" {
 VOID
@@ -1594,17 +1596,20 @@ VOID
 testArithmetic();
 }
 
+extern "C" {
 VOID
 testKem();
 
 VOID
 testCompositeHelpers();
+}
 
 extern "C" {
 VOID
 testEcEncoding();
 }
 
+extern "C" {
 VOID
 testHpke();
 
@@ -1613,6 +1618,7 @@ testScsTable();
 
 VOID
 testScsTools();
+}
 
 extern "C" {
 VOID
@@ -1636,6 +1642,7 @@ VOID
 testDsaAlgorithms();
 }
 
+extern "C" {
 VOID
 testPqDsa();
 
@@ -1647,6 +1654,7 @@ testServiceIndicator();
 
 VOID
 testHbs();
+}
 
 extern "C" {
 KatData *
@@ -1663,6 +1671,7 @@ randomTestGetSubstringPosition( _In_reads_( bufSize )  PCBYTE buf,
 
 VOID measurePerf( AlgorithmImplementation * pAlgImp );
 
+extern "C" {
 VOID measurePerfOfWipe();
 
 VOID initPerfSystem();
@@ -1670,13 +1679,14 @@ VOID initPerfSystem();
 VOID testSelftestPerf();
 
 VOID testSelftest();
+}
 
 extern "C" CHAR charToLower( CHAR c );
 
 #define PERF_WIPE_MAX_SIZE  64
 #define PERF_WIPE_N_OFFSETS      16
 
-extern double g_wipePerf[PERF_WIPE_MAX_SIZE+1][PERF_WIPE_N_OFFSETS];
+extern "C" double g_wipePerf[PERF_WIPE_MAX_SIZE+1][PERF_WIPE_N_OFFSETS];
 
 
 VOID
@@ -1712,12 +1722,10 @@ runFunctionalTests();
 
 VOID
 runPerfTests();
-}
 
 VOID
 runProfiling();
 
-extern "C" {
 VOID
 exitTestInfrastructure();
 }

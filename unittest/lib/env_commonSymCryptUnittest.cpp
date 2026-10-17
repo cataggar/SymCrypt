@@ -7,6 +7,8 @@
 // We hack and create a NEW environment for our unit test.
 //
 
+extern "C" {
+
 BOOLEAN     TestSelftestsEnabled = FALSE;
 
 ULONGLONG   TestFatalCount = 0;
@@ -15,8 +17,6 @@ ULONGLONG   TestErrorInjectionCalls = 0;
 UINT32      TestErrorInjectionProb = 0;
 
 BYTE TestErrorInjectionSeed[ SYMCRYPT_SHA1_RESULT_SIZE ] = {0};
-
-extern "C" {
 
 ///////////////////////////////////////////////////////
 // Start of the actual fake environment code
