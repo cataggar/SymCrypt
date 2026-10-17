@@ -196,6 +196,306 @@ scTestKatItemAddData(
     pItem->dataItems.push_back( dataItem );
 }
 
+//
+// Asymmetric / ECC / DL / RSA C ABI helpers for unittest_zig/
+//
+void *
+scTestEckeyGetPublicKey( void * pkEckey )
+{
+    return ((PSYMCRYPT_ECKEY)pkEckey)->poPublicKey;
+}
+
+void *
+scTestEckeyGetPrivateKey( void * pkEckey )
+{
+    return ((PSYMCRYPT_ECKEY)pkEckey)->piPrivateKey;
+}
+
+UINT32
+scTestEcurveScratchCommon( const void * pCurve )
+{
+    return SYMCRYPT_SCRATCH_BYTES_FOR_COMMON_ECURVE_OPERATIONS( (PCSYMCRYPT_ECURVE)pCurve );
+}
+
+UINT32
+scTestEcurveScratchScalar( const void * pCurve )
+{
+    return SYMCRYPT_SCRATCH_BYTES_FOR_SCALAR_ECURVE_OPERATIONS( (PCSYMCRYPT_ECURVE)pCurve );
+}
+
+UINT32
+scTestEcurveScratchMultiScalar( const void * pCurve, UINT32 nPoints )
+{
+    return SYMCRYPT_SCRATCH_BYTES_FOR_MULTI_SCALAR_ECURVE_OPERATIONS( (PCSYMCRYPT_ECURVE)pCurve, nPoints );
+}
+
+UINT32
+scTestEcurveScratchGetSetValue( const void * pCurve )
+{
+    return SYMCRYPT_SCRATCH_BYTES_FOR_GETSET_VALUE_ECURVE_OPERATIONS( (PCSYMCRYPT_ECURVE)pCurve );
+}
+
+void *
+scTestEcurveGOrd( const void * pCurve )
+{
+    return ((PCSYMCRYPT_ECURVE)pCurve)->GOrd;
+}
+
+UINT32
+scTestEcurveGOrdDigits( const void * pCurve )
+{
+    return ((PCSYMCRYPT_ECURVE)pCurve)->GOrdDigits;
+}
+
+UINT32
+scTestScratchBytesForIntDivMod( UINT32 nSrcDigits, UINT32 nDivisorDigits )
+{
+    return SYMCRYPT_SCRATCH_BYTES_FOR_INT_DIVMOD( nSrcDigits, nDivisorDigits );
+}
+
+void
+scTestSha256Init( void * pState )
+{
+    SymCryptSha256Init( (PSYMCRYPT_SHA256_STATE)pState );
+}
+
+void
+scTestSha256Append( void * pState, PCBYTE pbData, SIZE_T cbData )
+{
+    SymCryptSha256Append( (PSYMCRYPT_SHA256_STATE)pState, pbData, cbData );
+}
+
+void
+scTestSha256Result( void * pState, PBYTE pbResult )
+{
+    SymCryptSha256Result( (PSYMCRYPT_SHA256_STATE)pState, pbResult );
+}
+
+BYTE
+scTestDlgroupIsSafePrime( const void * pGroup )
+{
+    return ((PCSYMCRYPT_DLGROUP)pGroup)->isSafePrimeGroup;
+}
+
+UINT32
+scTestDlgroupNBitsOfQ( const void * pGroup )
+{
+    return ((PCSYMCRYPT_DLGROUP)pGroup)->nBitsOfQ;
+}
+
+UINT32
+scTestDlgroupNBitsOfP( const void * pGroup )
+{
+    return ((PCSYMCRYPT_DLGROUP)pGroup)->nBitsOfP;
+}
+
+UINT32
+scTestDlgroupNMinBitsPriv( const void * pGroup )
+{
+    return ((PCSYMCRYPT_DLGROUP)pGroup)->nMinBitsPriv;
+}
+
+UINT32
+scTestDlgroupNDefaultBitsPriv( const void * pGroup )
+{
+    return ((PCSYMCRYPT_DLGROUP)pGroup)->nDefaultBitsPriv;
+}
+
+const void *
+scTestDlgroupPmP( const void * pGroup )
+{
+    return ((PCSYMCRYPT_DLGROUP)pGroup)->pmP;
+}
+
+INT32
+scTestDlkeyFPrivateModQ( const void * pkKey )
+{
+    return ((PCSYMCRYPT_DLKEY)pkKey)->fPrivateModQ;
+}
+
+UINT32
+scTestDlkeyNBitsPriv( const void * pkKey )
+{
+    return ((PCSYMCRYPT_DLKEY)pkKey)->nBitsPriv;
+}
+
+const void *
+scTestDlkeyPiPrivateKey( const void * pkKey )
+{
+    return ((PCSYMCRYPT_DLKEY)pkKey)->piPrivateKey;
+}
+
+const void *
+scTestDlkeyPePublicKey( const void * pkKey )
+{
+    return ((PCSYMCRYPT_DLKEY)pkKey)->pePublicKey;
+}
+
+SIZE_T
+scTestGetAllImplementations( const char * algNamePtr, SIZE_T algNameLen, void ** outImps, SIZE_T maxImps )
+{
+    std::string algName( algNamePtr, algNameLen );
+    SIZE_T count = 0;
+    for( AlgorithmImplementationVector::const_iterator i = g_algorithmImplementation.begin();
+         i != g_algorithmImplementation.end();
+         ++i )
+    {
+        if( (*i)->m_algorithmName == algName )
+        {
+            if( count < maxImps )
+            {
+                outImps[count] = *i;
+                count++;
+            }
+        }
+    }
+    return count;
+}
+
+void
+scTestImpIncResults( void * impPtr )
+{
+    AlgorithmImplementation * pImp = (AlgorithmImplementation *)impPtr;
+    pImp->m_nResults++;
+}
+
+void
+scTestResultMergeAddAlgImp( void * handle, void * impPtr, PCBYTE pbData, SIZE_T cbData )
+{
+    AlgorithmImplementation * pAlgImp = (AlgorithmImplementation *)impPtr;
+    scTestResultMergeAddResult(
+        handle,
+        pAlgImp,
+        pAlgImp->m_implementationName.c_str(),
+        pAlgImp->m_algorithmName.c_str(),
+        &pAlgImp->m_nResults,
+        &pAlgImp->m_nErrorDisagreeWithMajority,
+        &pAlgImp->m_nErrorNoMajority,
+        pbData,
+        cbData );
+}
+
+NTSTATUS
+scTestDhImpSetKey( void * impPtr, PCDLKEY_TESTBLOB pcKeyBlob )
+{
+    return ((DhImplementation *)impPtr)->setKey( pcKeyBlob );
+}
+
+NTSTATUS
+scTestDhImpSharedSecret( void * impPtr, PCDLKEY_TESTBLOB pcPubkey, PBYTE pbSecret, SIZE_T cbSecret )
+{
+    return ((DhImplementation *)impPtr)->sharedSecret( pcPubkey, pbSecret, cbSecret );
+}
+
+NTSTATUS
+scTestDsaImpSetKey( void * impPtr, PCDLKEY_TESTBLOB pcKeyBlob )
+{
+    return ((DsaImplementation *)impPtr)->setKey( pcKeyBlob );
+}
+
+NTSTATUS
+scTestDsaImpSign( void * impPtr, PCBYTE pbHash, SIZE_T cbHash, PBYTE pbSig, SIZE_T cbSig )
+{
+    return ((DsaImplementation *)impPtr)->sign( pbHash, cbHash, pbSig, cbSig );
+}
+
+NTSTATUS
+scTestDsaImpVerify( void * impPtr, PCBYTE pbHash, SIZE_T cbHash, PCBYTE pbSig, SIZE_T cbSig )
+{
+    return ((DsaImplementation *)impPtr)->verify( pbHash, cbHash, pbSig, cbSig );
+}
+
+void
+scTestRsakeySetAlgorithmInfo( void * pKey, UINT32 flags )
+{
+    ((PSYMCRYPT_RSAKEY)pKey)->fAlgorithmInfo = flags;
+}
+
+SIZE_T
+scTestScratchBytesForRsaPkcs1( SIZE_T cbPKCS1Format )
+{
+    return SYMCRYPT_SCRATCH_BYTES_FOR_RSA_PKCS1( cbPKCS1Format );
+}
+
+SIZE_T
+scTestScratchBytesForRsaPss( const void * pHashAlgorithm, SIZE_T cbHash, SIZE_T cbPSSFormat )
+{
+    return SYMCRYPT_SCRATCH_BYTES_FOR_RSA_PSS( (PCSYMCRYPT_HASH)pHashAlgorithm, cbHash, cbPSSFormat );
+}
+
+SIZE_T
+scTestScratchBytesForRsaOaep( const void * pHashAlgorithm, SIZE_T cbOAEPFormat )
+{
+    return SYMCRYPT_SCRATCH_BYTES_FOR_RSA_OAEP( (PCSYMCRYPT_HASH)pHashAlgorithm, cbOAEPFormat );
+}
+
+NTSTATUS
+scTestRsaSignImpSetKey( void * impPtr, PCRSAKEY_TESTBLOB pcKeyBlob )
+{
+    return ((RsaSignImplementation *)impPtr)->setKey( pcKeyBlob );
+}
+
+NTSTATUS
+scTestRsaSignImpSign(
+    void * impPtr,
+    PCBYTE pbHash,
+    SIZE_T cbHash,
+    PCSTR pcstrHashAlgName,
+    UINT32 u32Other,
+    PBYTE pbSig,
+    SIZE_T cbSig )
+{
+    return ((RsaSignImplementation *)impPtr)->sign( pbHash, cbHash, pcstrHashAlgName, u32Other, pbSig, cbSig );
+}
+
+NTSTATUS
+scTestRsaSignImpVerify(
+    void * impPtr,
+    PCBYTE pbHash,
+    SIZE_T cbHash,
+    PCBYTE pbSig,
+    SIZE_T cbSig,
+    PCSTR pcstrHashAlgName,
+    UINT32 u32Other )
+{
+    return ((RsaSignImplementation *)impPtr)->verify( pbHash, cbHash, pbSig, cbSig, pcstrHashAlgName, u32Other );
+}
+
+NTSTATUS
+scTestRsaEncImpSetKey( void * impPtr, PCRSAKEY_TESTBLOB pcKeyBlob )
+{
+    return ((RsaEncImplementation *)impPtr)->setKey( pcKeyBlob );
+}
+
+NTSTATUS
+scTestRsaEncImpEncrypt(
+    void * impPtr,
+    PCBYTE pbMsg,
+    SIZE_T cbMsg,
+    PCSTR pcstrHashAlgName,
+    PCBYTE pbLabel,
+    SIZE_T cbLabel,
+    PBYTE pbCiphertext,
+    SIZE_T cbCiphertext )
+{
+    return ((RsaEncImplementation *)impPtr)->encrypt( pbMsg, cbMsg, pcstrHashAlgName, pbLabel, cbLabel, pbCiphertext, cbCiphertext );
+}
+
+NTSTATUS
+scTestRsaEncImpDecrypt(
+    void * impPtr,
+    PCBYTE pbCiphertext,
+    SIZE_T cbCiphertext,
+    PCSTR pcstrHashAlgName,
+    PCBYTE pbLabel,
+    SIZE_T cbLabel,
+    PBYTE pbMsg,
+    SIZE_T cbMsg,
+    SIZE_T * pcbMsg )
+{
+    return ((RsaEncImplementation *)impPtr)->decrypt( pbCiphertext, cbCiphertext, pcstrHashAlgName, pbLabel, cbLabel, pbMsg, cbMsg, pcbMsg );
+}
+
 } // extern "C"
 
 // ============================================================================
@@ -755,6 +1055,12 @@ katParseInteger( KAT_ITEM & item, LPCSTR name )
 //
 extern "C" {
 
+void *
+scTestDlgroupObjectFromTestBlob( PCDLGROUP_TESTBLOB pGroupBlob )
+{
+    return dlgroupObjectFromTestBlob<ImpSc>( pGroupBlob );
+}
+
 void
 scTestCheckAsmOffsets()
 {
@@ -985,22 +1291,6 @@ UINT32
 scTestIsAlgorithmPresent( const char * name_ptr, size_t name_len, UINT32 isPrefix )
 {
     return (UINT32)isAlgorithmPresent( String( name_ptr, name_len ), (BOOL)isPrefix );
-}
-
-void
-scTestResultMergeAddAlgImp( void * mergeHandle, void * pAlgImpVoid, const BYTE * pbData, size_t cbData )
-{
-    AlgorithmImplementation * pAlgImp = (AlgorithmImplementation *)pAlgImpVoid;
-    scTestResultMergeAddResult(
-        mergeHandle,
-        pAlgImp,
-        pAlgImp->m_implementationName.c_str(),
-        pAlgImp->m_algorithmName.c_str(),
-        &pAlgImp->m_nResults,
-        &pAlgImp->m_nErrorDisagreeWithMajority,
-        &pAlgImp->m_nErrorNoMajority,
-        pbData,
-        cbData );
 }
 
 void

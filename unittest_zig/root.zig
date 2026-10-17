@@ -26,6 +26,14 @@ pub const test_key_wrap = @import("test_key_wrap.zig");
 pub const test_padding_pkcs7 = @import("test_padding_pkcs7.zig");
 pub const test_tls_cbc_hmac = @import("test_tls_cbc_hmac.zig");
 pub const test_aes_ctr_drbg = @import("test_aes_ctr_drbg.zig");
+pub const test_arithmetic = @import("test_arithmetic.zig");
+pub const test_montgomery = @import("test_montgomery.zig");
+pub const test_dh = @import("test_dh.zig");
+pub const test_dsa = @import("test_dsa.zig");
+pub const test_ecc = @import("test_ecc.zig");
+pub const test_ec_encoding = @import("test_ec_encoding.zig");
+pub const test_rsa_enc = @import("test_rsa_enc.zig");
+pub const test_rsa_sign = @import("test_rsa_sign.zig");
 
 extern fn scTestCppMain(argc: c_int, argv: [*][*:0]u8) callconv(.c) c_int;
 
@@ -59,4 +67,12 @@ comptime {
     _ = test_padding_pkcs7;
     _ = test_tls_cbc_hmac;
     _ = test_aes_ctr_drbg;
+    _ = test_arithmetic;
+    _ = test_montgomery;
+    _ = test_dh;
+    _ = test_dsa;
+    _ = test_ecc;
+    _ = test_ec_encoding;
+    _ = test_rsa_enc;
+    _ = test_rsa_sign;
 }

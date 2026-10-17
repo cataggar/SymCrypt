@@ -133,3 +133,23 @@ pub export fn rnddRunTest(nSeconds: u32, nThreads: u32) callconv(.c) void {
         rec.func();
     }
 }
+
+pub fn registerTestFunction(func: RNDD_TEST_FN, name: [*:0]const u8, weight: u32) void {
+    rnddRegisterTestFunction(func, @constCast(name), weight);
+}
+
+pub fn registerInitFunction(func: RNDD_TEST_FN) void {
+    rnddRegisterInitFunction(func);
+}
+
+pub fn registerCleanupFunction(func: RNDD_TEST_FN) void {
+    rnddRegisterCleanupFunction(func);
+}
+
+pub fn registerInvariantFunction(func: RNDD_TEST_FN) void {
+    rnddRegisterInvariantFunction(func);
+}
+
+pub fn runTest(nSeconds: u32, nThreads: u32) void {
+    rnddRunTest(nSeconds, nThreads);
+}

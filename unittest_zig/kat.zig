@@ -66,7 +66,222 @@ pub const KatData = extern struct {
             self.advance();
         }
     }
+
+    pub fn init(name: []const u8, pbData: [*]const u8, cbData: usize) KatData {
+        _ = name;
+        return .{
+            .m_pbStart = pbData,
+            .m_pbData = pbData,
+            .m_pbEnd = pbData + cbData,
+            .m_line = 1,
+            .m_name = @constCast(""),
+        };
+    }
+
+    pub fn getKatItem(self: *KatData, item: *KatItem) void {
+        item.deinitDataItems();
+        item.itemType = KAT_TYPE_END;
+        item.line = self.m_line;
+        item.nDataItems = 0;
+
+        var inDataSet = false;
+        while (true) {
+            self.skipSpace();
+            if (self.atEol()) {
+                if (inDataSet) {
+                    self.skipNewlines();
+                    item.itemType = KAT_TYPE_DATASET;
+                    item.line = self.m_line;
+                    break;
+                } else {
+                    if (self.isEmpty()) {
+                        item.itemType = KAT_TYPE_END;
+                        item.line = self.m_line;
+                        break;
+                    }
+                    self.skipNewlines();
+                    continue;
+                }
+            }
+
+            if (self.next() == '[') {
+                if (inDataSet) {
+                    h.fatal("Missing blank line before category [...] marker on line {d}", .{self.m_line});
+                }
+
+                const pbStart = self.m_pbData;
+                const startLine = self.m_line;
+                while (!self.atEol() and self.next() != ']') {
+                    self.advance();
+                }
+
+                if (self.atEol()) {
+                    h.fatal("Unclosed '[' in line {d}", .{startLine});
+                }
+
+                const pbEnd = self.m_pbData;
+                self.advance(); // skip ']'
+
+                self.skipSpace();
+                if (!self.atEol()) {
+                    h.fatal("Extra data after '[...]' in line {d}", .{self.m_line});
+                }
+
+                item.itemType = KAT_TYPE_CATEGORY;
+                item.line = self.m_line;
+                const cat_len = (@intFromPtr(pbEnd) - @intFromPtr(pbStart)) - 1;
+                const copy_len = @min(cat_len, item.catBuf.len);
+                @memcpy(item.catBuf[0..copy_len], (pbStart + 1)[0..copy_len]);
+                item.catLen = copy_len;
+
+                self.skipNewlines();
+                break;
+            }
+
+            {
+                const nameStart = self.m_pbData;
+                const startLine = self.m_line;
+                while (!self.atEol() and self.next() != '=') {
+                    self.advance();
+                }
+
+                if (self.atEol()) {
+                    h.fatal("Missing = in line {d}", .{startLine});
+                }
+
+                const nameEnd = self.m_pbData;
+                self.advance(); // skip '='
+                const dataStart = self.m_pbData;
+
+                while (!self.atEol()) {
+                    self.advance();
+                }
+                const dataEnd = self.m_pbData;
+
+                const raw_name = nameStart[0 .. @intFromPtr(nameEnd) - @intFromPtr(nameStart)];
+                const raw_data = dataStart[0 .. @intFromPtr(dataEnd) - @intFromPtr(dataStart)];
+
+                const name = stripAlloc(raw_name, false);
+                defer std.heap.c_allocator.free(name);
+                const data = stripAlloc(raw_data, true);
+
+                if (!inDataSet) {
+                    inDataSet = true;
+                    item.itemType = KAT_TYPE_DATASET;
+                    item.line = self.m_line;
+                    item.nDataItems = 0;
+                }
+
+                for (name) |*ch| {
+                    ch.* = charToLower(ch.*);
+                }
+
+                if (katIsFieldPresent(item, name)) {
+                    h.fatal("Duplicate data field \"{s}\" in data set in line {d}", .{ name, self.m_line });
+                }
+
+                h.check(item.nDataItems < item.dataItems.len, "Too many data items in KAT record");
+                var di = &item.dataItems[item.nDataItems];
+                const nlen = @min(name.len, di.nameBuf.len);
+                @memcpy(di.nameBuf[0..nlen], name[0..nlen]);
+                di.nameLen = nlen;
+                di.dataPtr = data.ptr;
+                di.dataLen = data.len;
+                di.line = self.m_line;
+                item.nDataItems += 1;
+
+                if (!self.isEmpty() and self.next() == '\r') {
+                    self.advance();
+                }
+                if (!self.isEmpty() and self.next() == '\n') {
+                    self.advance();
+                }
+            }
+        }
+    }
 };
+
+pub const BString = struct {
+    pbData: [*]u8,
+    cbData: usize,
+
+    pub fn deinit(self: *const BString) void {
+        scTestKatFreeParsedData(self.pbData, self.cbData);
+    }
+};
+
+pub const KatDataItem = struct {
+    nameBuf: [64]u8 = undefined,
+    nameLen: usize = 0,
+    dataPtr: [*]u8 = undefined,
+    dataLen: usize = 0,
+    line: i64 = 0,
+
+    pub fn nameSlice(self: *const KatDataItem) []const u8 {
+        return self.nameBuf[0..self.nameLen];
+    }
+
+    pub fn dataSlice(self: *const KatDataItem) []const u8 {
+        return self.dataPtr[0..self.dataLen];
+    }
+};
+
+pub const KatItem = struct {
+    itemType: c_int = KAT_TYPE_END,
+    line: i64 = 0,
+    catBuf: [128]u8 = undefined,
+    catLen: usize = 0,
+    dataItems: [32]KatDataItem = undefined,
+    nDataItems: usize = 0,
+
+    pub fn categoryName(self: *const KatItem) []const u8 {
+        return self.catBuf[0..self.catLen];
+    }
+
+    pub fn deinitDataItems(self: *KatItem) void {
+        for (0..self.nDataItems) |i| {
+            const di = &self.dataItems[i];
+            std.heap.c_allocator.free(di.dataPtr[0..di.dataLen]);
+        }
+        self.nDataItems = 0;
+    }
+};
+
+pub fn findDataItem(item: *const KatItem, name: []const u8) ?*const KatDataItem {
+    for (0..item.nDataItems) |i| {
+        const di = &item.dataItems[i];
+        if (std.ascii.eqlIgnoreCase(di.nameSlice(), name)) {
+            return di;
+        }
+    }
+    return null;
+}
+
+pub fn katIsFieldPresent(item: *const KatItem, name: []const u8) bool {
+    return findDataItem(item, name) != null;
+}
+
+pub fn katParseData(item: *const KatItem, name: []const u8) BString {
+    const di = findDataItem(item, name) orelse {
+        h.fatal("Could not find dataset field \"{s}\" in dataset at line {d}", .{ name, item.line });
+    };
+    var outLen: usize = 0;
+    const ptr = scTestKatParseDataRaw(di.dataPtr, di.dataLen, di.line, &outLen);
+    return .{ .pbData = ptr, .cbData = outLen };
+}
+
+pub fn katParseInteger(item: *const KatItem, name: []const u8) i64 {
+    const di = findDataItem(item, name) orelse {
+        h.fatal("Could not find dataset field \"{s}\" in dataset at line {d}", .{ name, item.line });
+    };
+    const s = di.dataSlice();
+    if (std.mem.startsWith(u8, s, "0x") or std.mem.startsWith(u8, s, "0X")) {
+        const u = std.fmt.parseInt(u64, s[2..], 16) catch 0;
+        return @bitCast(u);
+    } else {
+        return std.fmt.parseInt(i64, s, 10) catch 0;
+    }
+}
 
 extern fn scTestKatItemSetType(pKatItem: *anyopaque, itemType: c_int, line: i64) callconv(.c) void;
 extern fn scTestKatItemSetCategory(pKatItem: *anyopaque, ptr: [*]const u8, len: usize) callconv(.c) void;
@@ -563,3 +778,17 @@ pub const ZigKatReader = struct {
         }
     }
 };
+
+pub fn findEmbeddedResource(name: []const u8) ?h.DataResource {
+    const lookup = if (std.ascii.eqlIgnoreCase(name, "kat_rsa_sign.dat")) "kat_rsasign.dat" else name;
+    for (embedded_kats) |entry| {
+        if (std.ascii.eqlIgnoreCase(lookup, entry.name)) {
+            return .{
+                .name = entry.name,
+                .pbData = entry.data.ptr,
+                .cbData = entry.data.len,
+            };
+        }
+    }
+    return null;
+}
