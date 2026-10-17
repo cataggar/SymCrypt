@@ -64,8 +64,6 @@ extern var g_SymCryptCpuFeaturesNotPresent: u32;
 
 extern fn SymCryptInitEnvCommon(version: u32) callconv(.c) void;
 extern fn SymCryptSha1(pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
-extern fn SymCryptMarvin32(pSeed: *const anyopaque, pbData: [*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
-extern const SymCryptMarvin32DefaultSeed: *const anyopaque;
 
 extern fn SymCryptDetectCpuFeaturesByCpuid(flags: u32) callconv(.c) void;
 extern fn SymCryptDetectCpuFeaturesFromIsProcessorFeaturePresent() callconv(.c) void;
@@ -150,75 +148,128 @@ pub export fn SymCryptInjectError(pbBuf: ?[*]u8, cbBuf: usize) callconv(.c) void
 // Vector Register Verification & Save/Restore State (x86_64 ASM)
 // ============================================================================
 
-const RegistersStruct = extern struct {
-    savedState: [32 * 64]u8 align(64) = @splat(0),
-};
+threadlocal var t_ymmStartState: [16 * 32]u8 align(32) = @splat(0);
+threadlocal var t_ymmTestState: [16 * 32]u8 align(32) = @splat(0);
+// Extra space in ZMM buffers for k0-k7 mask registers (8 * 8 bytes = one extra 64-byte slot)
+threadlocal var t_zmmStartState: [33 * 64]u8 align(64) = @splat(0);
+threadlocal var t_zmmTestState: [33 * 64]u8 align(64) = @splat(0);
 
-var g_Regs: RegistersStruct align(64) = .{};
-
-pub export fn initVectorRegisters() callconv(.c) void {
+inline fn rdtsc() u64 {
     if (comptime is_amd64_asm) {
-        var isZmm: bool = false;
-        if (cpuFeaturesPresent(SYMCRYPT_CPU_FEATURE_AVX512)) {
-            isZmm = true;
-            SymCryptEnvUmSaveZmmRegistersAsm(&g_Regs.savedState);
-        } else if (cpuFeaturesPresent(SYMCRYPT_CPU_FEATURE_AVX2)) {
-            SymCryptEnvUmSaveYmmRegistersAsm(&g_Regs.savedState);
-        } else {
-            return;
-        }
-
-        const numHighVectorSubregisters: u32 = if (isZmm) (16 * 3 + 16 * 4) else 16;
-        for (0..numHighVectorSubregisters) |i| {
-            var buf: [2 * @sizeOf(u32)]u8 = undefined;
-            std.mem.writeInt(u32, buf[0..4], @intCast(i), .little);
-            std.mem.writeInt(u32, buf[4..8], @truncate(@intFromPtr(&g_Regs.savedState)), .little);
-            const dest = g_Regs.savedState[i * 16 ..][0..16];
-            SymCryptMarvin32(SymCryptMarvin32DefaultSeed, &buf, buf.len, dest.ptr);
-            SymCryptMarvin32(SymCryptMarvin32DefaultSeed, dest.ptr, 8, dest[8..16].ptr);
-        }
-
-        if (isZmm) {
-            SymCryptEnvUmRestoreZmmRegistersAsm(&g_Regs.savedState);
-        } else {
-            SymCryptEnvUmRestoreYmmRegistersAsm(&g_Regs.savedState);
-        }
+        var low: u32 = undefined;
+        var high: u32 = undefined;
+        asm volatile ("rdtsc"
+            : [low] "={eax}" (low),
+              [high] "={edx}" (high),
+        );
+        return (@as(u64, high) << 32) | @as(u64, low);
     }
+    return 0;
 }
 
 pub export fn verifyVectorRegisters() callconv(.c) void {
     if (comptime is_amd64_asm) {
-        var currentState: RegistersStruct align(64) = .{};
-        if (cpuFeaturesPresent(SYMCRYPT_CPU_FEATURE_AVX512) and TestSaveZmmEnabled == 0) {
-            SymCryptEnvUmSaveZmmRegistersAsm(&currentState.savedState);
-            if (!std.mem.eql(u8, &currentState.savedState, &g_Regs.savedState)) {
-                SymCryptFatalEnvUnittest(multiCharConstant("zmmx"));
+        if (TestSaveZmmEnabled != 0 and cpuFeaturesPresent(SYMCRYPT_CPU_FEATURE_AVX512)) {
+            SymCryptEnvUmSaveZmmRegistersAsm(&t_zmmTestState);
+
+            var i: usize = 16 * 64;
+            while (i < 32 * 64) : (i += 1) {
+                if (t_zmmStartState[i] != t_zmmTestState[i]) {
+                    h.fatal("Zmm registers modified without proper save/restore Zmm{d}[{d}]", .{ i / 64, i % 64 });
+                }
             }
-        } else if (cpuFeaturesPresent(SYMCRYPT_CPU_FEATURE_AVX2) and TestSaveYmmEnabled == 0) {
-            SymCryptEnvUmSaveYmmRegistersAsm(&currentState.savedState);
-            if (!std.mem.eql(u8, currentState.savedState[0..256], g_Regs.savedState[0..256])) {
-                SymCryptFatalEnvUnittest(multiCharConstant("ymmx"));
+
+            i = 0;
+            while (i < 8 * 8) : (i += 1) {
+                if (t_zmmStartState[32 * 64 + i] != t_zmmTestState[32 * 64 + i]) {
+                    h.fatal("Mask register modified without proper save/restore k{d}[{d}]", .{ i / 8, i % 8 });
+                }
             }
+        } else if (TestSaveYmmEnabled != 0 and cpuFeaturesPresent(SYMCRYPT_CPU_FEATURE_AVX2)) {
+            SymCryptEnvUmSaveYmmRegistersAsm(&t_ymmTestState);
+
+            for (0..t_ymmStartState.len) |i| {
+                if (t_ymmStartState[i] != t_ymmTestState[i] and ((i & 16) == 16)) {
+                    h.fatal("Ymm registers modified without proper save/restore Ymm{d}[{d}]", .{ i >> 5, i & 31 });
+                }
+            }
+        }
+    }
+}
+
+pub export fn initVectorRegisters() callconv(.c) void {
+    if (comptime is_amd64_asm) {
+        if (TestSaveZmmEnabled != 0 and cpuFeaturesPresent(SYMCRYPT_CPU_FEATURE_AVX512)) {
+            @memset(&t_zmmTestState, 17);
+            const fill: u8 = @as(u8, @truncate(rdtsc())) ^ 0x42;
+            @memset(&t_zmmStartState, fill);
+            SymCryptEnvUmRestoreZmmRegistersAsm(&t_zmmStartState);
+            verifyVectorRegisters();
+        } else if (TestSaveYmmEnabled != 0) {
+            @memset(&t_ymmTestState, 17);
+            const fill: u8 = @as(u8, @truncate(rdtsc())) ^ 0x42;
+            @memset(&t_ymmStartState, fill);
+            SymCryptEnvUmRestoreYmmRegistersAsm(&t_ymmStartState);
+            verifyVectorRegisters();
         }
     }
 }
 
 pub export fn cleanVectorRegisters() callconv(.c) void {
     if (comptime is_amd64_asm) {
-        @memset(&g_Regs.savedState, 0);
-        if (cpuFeaturesPresent(SYMCRYPT_CPU_FEATURE_AVX512)) {
-            SymCryptEnvUmRestoreZmmRegistersAsm(&g_Regs.savedState);
-        } else if (cpuFeaturesPresent(SYMCRYPT_CPU_FEATURE_AVX2)) {
-            SymCryptEnvUmRestoreYmmRegistersAsm(&g_Regs.savedState);
+        if (!cpuFeaturesPresent(SYMCRYPT_CPU_FEATURE_AVX2)) {
+            return;
         }
+        var zero_ymm: [16 * 32]u8 align(32) = @splat(0);
+        SymCryptEnvUmRestoreYmmRegistersAsm(&zero_ymm);
     }
 }
 
-const ExtendedSaveData = extern struct {
-    interlock: i32 align(64),
-    data: [32 * 64]u8 align(64),
+const SYMCRYPT_NO_ERROR: u32 = 0;
+const SYMCRYPT_EXTERNAL_FAILURE: u32 = 0x8015;
+const SYMCRYPT_SAVE_YMM_FAIL_PROB: u64 = 31;
+const SYMCRYPT_SAVE_ZMM_FAIL_PROB: u64 = 31;
+
+threadlocal var t_saveInProgressTypes: [16]u8 = @splat(0);
+threadlocal var t_savesInProgress: usize = 0;
+threadlocal var t_savePtrs: [16]?*anyopaque = @splat(null);
+
+const YmmSaveDataRegs = extern struct {
+    ymm: [16 * 32]u8 align(32),
     magic: usize,
 };
+
+const YmmSaveData = extern struct {
+    pRegs: ?*YmmSaveDataRegs,
+    magic: usize,
+};
+
+const ZmmSaveDataRegs = extern struct {
+    zmm: [32 * 64]u8 align(64),
+    kmask: [8]u64,
+    magic: usize,
+};
+
+const ZmmSaveData = extern struct {
+    pRegs: ?*ZmmSaveDataRegs,
+    magic: usize,
+};
+
+fn mallocAlign(comptime alignment: usize, size: usize) ?[*]align(alignment) u8 {
+    const raw = std.c.malloc(size + 8 + (alignment - 1)) orelse return null;
+    const base_addr = @intFromPtr(raw);
+    const aligned_addr = (base_addr + 8 + (alignment - 1)) & ~(alignment - 1);
+    const prev_ptr: *usize = @ptrFromInt(aligned_addr - 8);
+    prev_ptr.* = base_addr;
+    return @ptrFromInt(aligned_addr);
+}
+
+fn freeAlign(comptime alignment: usize, p: *anyopaque) void {
+    const addr = @intFromPtr(p);
+    h.check((addr & (alignment - 1)) == 0, "?");
+    const prev_ptr: *const usize = @ptrFromInt(addr - 8);
+    std.c.free(@ptrFromInt(prev_ptr.*));
+}
 
 inline fn computeMagic(ptr: anytype) usize {
     return @intFromPtr(ptr) +% (@as(usize, multiCharConstant("S1mv")) +% @as(usize, SYMCRYPT_API_VERSION));
@@ -226,7 +277,7 @@ inline fn computeMagic(ptr: anytype) usize {
 
 pub export fn SymCryptSaveXmmEnvUnittest(pSaveData: ?*anyopaque) callconv(.c) u32 {
     _ = pSaveData;
-    return 0;
+    return SYMCRYPT_NO_ERROR;
 }
 
 pub export fn SymCryptSaveXmm(pSaveData: ?*anyopaque) callconv(.c) u32 {
@@ -243,35 +294,32 @@ pub export fn SymCryptRestoreXmm(pSaveData: ?*anyopaque) callconv(.c) void {
 
 pub export fn SymCryptSaveYmmEnvUnittest(pSaveDataPtr: ?*anyopaque) callconv(.c) u32 {
     if (comptime is_amd64_asm) {
-        const pSaveData: *ExtendedSaveData = @ptrCast(@alignCast(pSaveDataPtr.?));
-        if (!cpuFeaturesPresent(SYMCRYPT_CPU_FEATURE_AVX2)) {
-            SymCryptFatalEnvUnittest(multiCharConstant("save"));
-        }
+        const p: *YmmSaveData = @ptrCast(@alignCast(pSaveDataPtr.?));
+        h.check(cpuFeaturesPresent(SYMCRYPT_CPU_FEATURE_AVX2), "?");
 
         if (TestSaveYmmEnabled != 0) {
-            if (@cmpxchgStrong(i32, &g_nYmmSaves, 0, 1, .seq_cst, .seq_cst) != null) {
-                SymCryptFatalEnvUnittest(multiCharConstant("ymms"));
+            if ((rdtsc() % SYMCRYPT_SAVE_YMM_FAIL_PROB) == 0) {
+                return SYMCRYPT_EXTERNAL_FAILURE;
             }
-            pSaveData.interlock = 0;
-            SymCryptEnvUmSaveYmmRegistersAsm(&pSaveData.data);
-            pSaveData.magic = computeMagic(pSaveData);
-        } else {
-            var currentRegs: RegistersStruct align(64) = .{};
-            SymCryptEnvUmSaveYmmRegistersAsm(&currentRegs.savedState);
-            if (!std.mem.eql(u8, currentRegs.savedState[0..256], g_Regs.savedState[0..256])) {
-                SymCryptFatalEnvUnittest(multiCharConstant("ymmx"));
-            }
-            @memcpy(pSaveData.data[0..256], currentRegs.savedState[0..256]);
-            pSaveData.magic = computeMagic(pSaveData);
+
+            var regs: [16 * 32]u8 align(32) = undefined;
+            SymCryptEnvUmSaveYmmRegistersAsm(&regs);
+
+            const mem = mallocAlign(32, @sizeOf(YmmSaveDataRegs)) orelse return SYMCRYPT_EXTERNAL_FAILURE;
+            const pRegs: *YmmSaveDataRegs = @ptrCast(mem);
+            @memcpy(&pRegs.ymm, &regs);
+            pRegs.magic = computeMagic(pRegs);
+            p.pRegs = pRegs;
+            p.magic = computeMagic(p);
+
+            h.check(t_savesInProgress < t_saveInProgressTypes.len, "Too many nested saves!");
+            t_saveInProgressTypes[t_savesInProgress] = 'Y';
+            t_savePtrs[t_savesInProgress] = pSaveDataPtr;
+            t_savesInProgress += 1;
         }
-
-        _ = @atomicRmw(u32, &g_nSaves, .Add, 1, .seq_cst);
     }
-    return 0;
+    return SYMCRYPT_NO_ERROR;
 }
-
-var g_nYmmSaves: i32 = 0;
-var g_nZmmSaves: i32 = 0;
 
 pub export fn SymCryptSaveYmm(pSaveDataPtr: ?*anyopaque) callconv(.c) u32 {
     return SymCryptSaveYmmEnvUnittest(pSaveDataPtr);
@@ -279,23 +327,28 @@ pub export fn SymCryptSaveYmm(pSaveDataPtr: ?*anyopaque) callconv(.c) u32 {
 
 pub export fn SymCryptRestoreYmmEnvUnittest(pSaveDataPtr: ?*anyopaque) callconv(.c) void {
     if (comptime is_amd64_asm) {
-        const pSaveData: *ExtendedSaveData = @ptrCast(@alignCast(pSaveDataPtr.?));
-        if (pSaveData.magic != computeMagic(pSaveData)) {
-            SymCryptFatalEnvUnittest(multiCharConstant("magc"));
-        }
+        const p: *YmmSaveData = @ptrCast(@alignCast(pSaveDataPtr.?));
+        h.check(cpuFeaturesPresent(SYMCRYPT_CPU_FEATURE_AVX2), "?");
 
         if (TestSaveYmmEnabled != 0) {
-            if (@cmpxchgStrong(i32, &g_nYmmSaves, 1, 0, .seq_cst, .seq_cst) != null) {
-                SymCryptFatalEnvUnittest(multiCharConstant("ymms"));
-            }
-            SymCryptEnvUmRestoreYmmRegistersAsm(&pSaveData.data);
-        } else {
-            if (!std.mem.eql(u8, pSaveData.data[0..256], g_Regs.savedState[0..256])) {
-                SymCryptFatalEnvUnittest(multiCharConstant("ymmx"));
-            }
-            SymCryptEnvUmRestoreYmmRegistersAsm(&g_Regs.savedState);
+            h.check(p.magic == computeMagic(p), "SaveData magic mismatch");
+            const pRegs = p.pRegs.?;
+            h.check(pRegs.magic == computeMagic(pRegs), "SaveDataRegs magic mismatch");
+
+            h.check(t_savesInProgress > 0, "No saves in progress!");
+            t_savesInProgress -= 1;
+            h.check(t_saveInProgressTypes[t_savesInProgress] == 'Y', "YMM not saved");
+            h.check(t_savePtrs[t_savesInProgress] == pSaveDataPtr, "?");
+
+            var regs: [16 * 32]u8 align(32) = undefined;
+            @memcpy(&regs, &pRegs.ymm);
+            pRegs.magic = 0;
+            freeAlign(32, pRegs);
+            p.pRegs = null;
+            p.magic = 0;
+
+            SymCryptEnvUmRestoreYmmRegistersAsm(&regs);
         }
-        pSaveData.magic = 0;
     }
 }
 
@@ -305,31 +358,36 @@ pub export fn SymCryptRestoreYmm(pSaveDataPtr: ?*anyopaque) callconv(.c) void {
 
 pub export fn SymCryptSaveZmmEnvUnittest(pSaveDataPtr: ?*anyopaque) callconv(.c) u32 {
     if (comptime is_amd64_asm) {
-        const pSaveData: *ExtendedSaveData = @ptrCast(@alignCast(pSaveDataPtr.?));
-        if (!cpuFeaturesPresent(SYMCRYPT_CPU_FEATURE_AVX512)) {
-            SymCryptFatalEnvUnittest(multiCharConstant("save"));
+        const p: *ZmmSaveData = @ptrCast(@alignCast(pSaveDataPtr.?));
+        h.check(cpuFeaturesPresent(SYMCRYPT_CPU_FEATURE_AVX512), "?");
+
+        if (TestSaveZmmEnabled == 0 and TestSaveYmmEnabled != 0) {
+            return SYMCRYPT_EXTERNAL_FAILURE;
         }
 
         if (TestSaveZmmEnabled != 0) {
-            if (@cmpxchgStrong(i32, &g_nZmmSaves, 0, 1, .seq_cst, .seq_cst) != null) {
-                SymCryptFatalEnvUnittest(multiCharConstant("zmms"));
+            if ((rdtsc() % SYMCRYPT_SAVE_ZMM_FAIL_PROB) == 0) {
+                return SYMCRYPT_EXTERNAL_FAILURE;
             }
-            pSaveData.interlock = 0;
-            SymCryptEnvUmSaveZmmRegistersAsm(&pSaveData.data);
-            pSaveData.magic = computeMagic(pSaveData);
-        } else {
-            var currentRegs: RegistersStruct align(64) = .{};
-            SymCryptEnvUmSaveZmmRegistersAsm(&currentRegs.savedState);
-            if (!std.mem.eql(u8, &currentRegs.savedState, &g_Regs.savedState)) {
-                SymCryptFatalEnvUnittest(multiCharConstant("zmmx"));
-            }
-            @memcpy(&pSaveData.data, &currentRegs.savedState);
-            pSaveData.magic = computeMagic(pSaveData);
-        }
 
-        _ = @atomicRmw(u32, &g_nSaves, .Add, 1, .seq_cst);
+            var regs: [33 * 64]u8 align(64) = undefined;
+            SymCryptEnvUmSaveZmmRegistersAsm(&regs);
+
+            const mem = mallocAlign(64, @sizeOf(ZmmSaveDataRegs)) orelse return SYMCRYPT_EXTERNAL_FAILURE;
+            const pRegs: *ZmmSaveDataRegs = @ptrCast(mem);
+            @memcpy(&pRegs.zmm, regs[0 .. 32 * 64]);
+            @memcpy(std.mem.asBytes(&pRegs.kmask), regs[32 * 64 ..][0 .. 8 * 8]);
+            pRegs.magic = computeMagic(pRegs);
+            p.pRegs = pRegs;
+            p.magic = computeMagic(p);
+
+            h.check(t_savesInProgress < t_saveInProgressTypes.len, "Too many nested saves!");
+            t_saveInProgressTypes[t_savesInProgress] = 'Z';
+            t_savePtrs[t_savesInProgress] = pSaveDataPtr;
+            t_savesInProgress += 1;
+        }
     }
-    return 0;
+    return SYMCRYPT_NO_ERROR;
 }
 
 pub export fn SymCryptSaveZmm(pSaveDataPtr: ?*anyopaque) callconv(.c) u32 {
@@ -338,23 +396,29 @@ pub export fn SymCryptSaveZmm(pSaveDataPtr: ?*anyopaque) callconv(.c) u32 {
 
 pub export fn SymCryptRestoreZmmEnvUnittest(pSaveDataPtr: ?*anyopaque) callconv(.c) void {
     if (comptime is_amd64_asm) {
-        const pSaveData: *ExtendedSaveData = @ptrCast(@alignCast(pSaveDataPtr.?));
-        if (pSaveData.magic != computeMagic(pSaveData)) {
-            SymCryptFatalEnvUnittest(multiCharConstant("magc"));
-        }
+        const p: *ZmmSaveData = @ptrCast(@alignCast(pSaveDataPtr.?));
+        h.check(cpuFeaturesPresent(SYMCRYPT_CPU_FEATURE_AVX512), "?");
 
         if (TestSaveZmmEnabled != 0) {
-            if (@cmpxchgStrong(i32, &g_nZmmSaves, 1, 0, .seq_cst, .seq_cst) != null) {
-                SymCryptFatalEnvUnittest(multiCharConstant("zmms"));
-            }
-            SymCryptEnvUmRestoreZmmRegistersAsm(&pSaveData.data);
-        } else {
-            if (!std.mem.eql(u8, &pSaveData.data, &g_Regs.savedState)) {
-                SymCryptFatalEnvUnittest(multiCharConstant("zmmx"));
-            }
-            SymCryptEnvUmRestoreZmmRegistersAsm(&g_Regs.savedState);
+            h.check(p.magic == computeMagic(p), "SaveData magic mismatch");
+            const pRegs = p.pRegs.?;
+            h.check(pRegs.magic == computeMagic(pRegs), "SaveDataRegs magic mismatch");
+
+            h.check(t_savesInProgress > 0, "No saves in progress!");
+            t_savesInProgress -= 1;
+            h.check(t_saveInProgressTypes[t_savesInProgress] == 'Z', "ZMM not saved");
+            h.check(t_savePtrs[t_savesInProgress] == pSaveDataPtr, "?");
+
+            var regs: [33 * 64]u8 align(64) = undefined;
+            @memcpy(regs[0 .. 32 * 64], &pRegs.zmm);
+            @memcpy(regs[32 * 64 ..][0 .. 8 * 8], std.mem.asBytes(&pRegs.kmask));
+            pRegs.magic = 0;
+            freeAlign(64, pRegs);
+            p.pRegs = null;
+            p.magic = 0;
+
+            SymCryptEnvUmRestoreZmmRegistersAsm(&regs);
         }
-        pSaveData.magic = 0;
     }
 }
 

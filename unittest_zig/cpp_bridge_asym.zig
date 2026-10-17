@@ -2540,4 +2540,3 @@ pub export fn scTestSha256Result(pState: *anyopaque, pbResult: [*]u8) callconv(.
 pub export fn scTestSha256StateCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void {
     SymCryptSha256StateCopy(pSrc, pDst);
 }
-

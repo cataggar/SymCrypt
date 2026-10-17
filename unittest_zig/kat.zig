@@ -764,4 +764,3 @@ pub export fn scTestKatParseDataAlloc(pItemVoid: *const anyopaque, name: [*:0]co
     };
     return scTestKatParseDataRaw(it.data.ptr, it.data.len, it.line, pOutLen);
 }
-
