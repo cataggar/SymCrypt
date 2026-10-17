@@ -26,8 +26,6 @@ const common_c_sources: []const []const u8 = &.{
     "eckey.c",
     "ecpoint.c",
     "ecurve.c",
-    "fdef_mod.c",
-    "fdef369_mod.c",
     "gen_int.c",
     "modexp.c",
     "primes.c",
