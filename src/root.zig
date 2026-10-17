@@ -71,6 +71,8 @@ pub const aes_asm = @import("aes_asm.zig");
 pub const aes_default = @import("aes_default.zig");
 pub const aes_default_bc = @import("aes_default_bc.zig");
 pub const aes_selftest = @import("aes_selftest.zig");
+pub const fips_selftest = @import("fips_selftest.zig");
+pub const service_indicator = @import("service_indicator.zig");
 
 comptime {
     _ = build_options;
@@ -135,6 +137,8 @@ comptime {
     _ = aes_default;
     _ = aes_default_bc;
     _ = aes_selftest;
+    _ = fips_selftest;
+    _ = service_indicator;
 
     // Compile-time sanity checks on core types, masks, rotations, and magic constants.
     std.debug.assert(@sizeOf(types.SYMCRYPT_ERROR) == @sizeOf(c_int));
