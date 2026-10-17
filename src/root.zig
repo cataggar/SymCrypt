@@ -79,7 +79,12 @@ pub const xmss = @import("xmss.zig");
 pub const lms = @import("lms.zig");
 pub const parhash = @import("parhash.zig");
 pub const sha256_par = @import("sha256_par.zig");
+pub const sha256_par_ymm = @import("sha256_par_ymm.zig");
 pub const sha512_par = @import("sha512_par.zig");
+pub const sha512_par_ymm = @import("sha512_par_ymm.zig");
+pub const sha256_xmm = @import("sha256_xmm.zig");
+pub const sha256_ymm = @import("sha256_ymm.zig");
+pub const sha512_ymm = @import("sha512_ymm.zig");
 
 comptime {
     _ = build_options;
@@ -152,7 +157,12 @@ comptime {
     _ = lms;
     _ = parhash;
     _ = sha256_par;
+    _ = sha256_par_ymm;
     _ = sha512_par;
+    _ = sha512_par_ymm;
+    _ = sha256_xmm;
+    _ = sha256_ymm;
+    _ = sha512_ymm;
 
     // Compile-time sanity checks on core types, masks, rotations, and magic constants.
     std.debug.assert(@offsetOf(types.SYMCRYPT_SESSION, "replayState") == 0);
