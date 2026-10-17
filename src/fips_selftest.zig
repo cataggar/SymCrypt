@@ -116,6 +116,17 @@ pub inline fn SYMCRYPT_RUN_SELFTEST_ONCE(
     }
 }
 
+pub inline fn SYMCRYPT_RUN_KEY_GEN_PCT(
+    comptime pctFn: anytype,
+    key: anytype,
+    comptime flag: UINT32,
+) void {
+    if ((key.fAlgorithmInfo & (flag | SYMCRYPT_FLAG_KEY_NO_FIPS)) == 0) {
+        SYMCRYPT_FIPS_ASSERT(pctFn(key) == .SYMCRYPT_NO_ERROR);
+        _ = @atomicRmw(UINT32, &key.fAlgorithmInfo, .Or, flag, .monotonic);
+    }
+}
+
 pub export var g_SymCryptFipsSelftestsPerformed: UINT32 = 0;
 
 pub export fn SymCryptFipsGetSelftestsPerformed() callconv(SYMCRYPT_CALL) UINT32 {
@@ -151,15 +162,9 @@ pub const SYMCRYPT_INT = opaque {};
 pub const PSYMCRYPT_INT = *SYMCRYPT_INT;
 pub const PCSYMCRYPT_INT = *const SYMCRYPT_INT;
 
-pub const SYMCRYPT_RSAKEY = extern struct {
-    fAlgorithmInfo: UINT32 align(SYMCRYPT_ASYM_ALIGN_VALUE),
-    cbTotalSize: UINT32,
-    hasPrivateKey: BOOLEAN,
-    nSetBitsOfModulus: UINT32,
-    nBitsOfModulus: UINT32,
-};
-pub const PSYMCRYPT_RSAKEY = *SYMCRYPT_RSAKEY;
-pub const PCSYMCRYPT_RSAKEY = *const SYMCRYPT_RSAKEY;
+pub const SYMCRYPT_RSAKEY = types.SYMCRYPT_RSAKEY;
+pub const PSYMCRYPT_RSAKEY = types.PSYMCRYPT_RSAKEY;
+pub const PCSYMCRYPT_RSAKEY = types.PCSYMCRYPT_RSAKEY;
 
 pub const SYMCRYPT_MLKEMKEY = opaque {};
 pub const PSYMCRYPT_MLKEMKEY = *SYMCRYPT_MLKEMKEY;

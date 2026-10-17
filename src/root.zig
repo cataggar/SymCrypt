@@ -102,6 +102,9 @@ pub const aes_neon = @import("aes_neon.zig");
 pub const aes_xmm = @import("aes_xmm.zig");
 pub const aes_ymm = @import("aes_ymm.zig");
 pub const aes_zmm = @import("aes_zmm.zig");
+pub const rsakey = @import("rsakey.zig");
+pub const rsa_padding = @import("rsa_padding.zig");
+pub const rsa_enc = @import("rsa_enc.zig");
 
 comptime {
     _ = build_options;
@@ -197,8 +200,16 @@ comptime {
     _ = aes_xmm;
     _ = aes_ymm;
     _ = aes_zmm;
+    _ = rsakey;
+    _ = rsa_padding;
+    _ = rsa_enc;
 
     // Compile-time sanity checks on core types, masks, rotations, and magic constants.
+    std.debug.assert(@sizeOf(types.SYMCRYPT_RSA_PARAMS) == 16);
+    std.debug.assert(@alignOf(types.SYMCRYPT_RSAKEY) == types.SYMCRYPT_ASYM_ALIGN_VALUE);
+    std.debug.assert(@offsetOf(types.SYMCRYPT_RSAKEY, "au64PubExp") == 56);
+    std.debug.assert(@offsetOf(types.SYMCRYPT_RSAKEY, "pbPrimes") == 64);
+    std.debug.assert(@offsetOf(types.SYMCRYPT_RSAKEY, "magic") == 64 + 15 * @sizeOf(usize));
     std.debug.assert(@alignOf(types.SYMCRYPT_INT) == types.SYMCRYPT_ASYM_ALIGN_VALUE);
     std.debug.assert(@alignOf(types.SYMCRYPT_DIVISOR) == types.SYMCRYPT_ASYM_ALIGN_VALUE);
     std.debug.assert(@alignOf(types.SYMCRYPT_MODULUS) == types.SYMCRYPT_ASYM_ALIGN_VALUE);
