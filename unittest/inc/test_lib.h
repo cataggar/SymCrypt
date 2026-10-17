@@ -1268,6 +1268,7 @@ extern BOOL g_useDynamicFunctionsInTestCall;
 
 // Environment specific functions for handling dynamic modules
 
+extern "C" {
 PVOID loadDynamicModuleFromPath(PCSTR dynamicModulePath);
 // dlopen on Linux, LoadLibraryA on Windows
 
@@ -1278,6 +1279,7 @@ typedef enum {
 } SCTEST_DYNSYM_TYPE;
 
 PVOID getDynamicSymbolPointerFromString(PVOID hModule, PCSTR pSymbolName, SCTEST_DYNSYM_TYPE symbolType);
+}
 // dlsym on Linux, GetProcAddress on Windows
 //
 // We distinguish between looking up function pointers and symbols
@@ -1308,6 +1310,7 @@ extern "C" SYMCRYPT_CPU_FEATURES SctestDisableCpuFeatures(SYMCRYPT_CPU_FEATURES 
 //
 // Currently assumes that the unit test binary will have the same CPU architecture as the module under test
 
+extern "C" {
 VOID
 initVectorRegisters();
 
@@ -1316,6 +1319,7 @@ verifyVectorRegisters();
 
 VOID
 cleanVectorRegisters();
+}
 
 //
 // Wrappers for calls into SymCrypt which check that vector registers are saved/restored appropriately
@@ -1528,11 +1532,13 @@ VOID SYMCRYPT_CALL SymCryptEnvUmRestoreZmmRegistersAsm( __m512i * buffer );
 VOID
 testWipe();
 
+extern "C" {
 VOID
 testUtil();
 
 VOID
 testModuleInitEx();
+}
 
 VOID
 testDataAccessors();
@@ -1630,8 +1636,10 @@ testServiceIndicator();
 VOID
 testHbs();
 
+extern "C" {
 KatData *
 getCustomResource( _In_ PSTR resourceName, _In_ PSTR resourceType );
+}
 
 VOID
 randomTestGetSubstringPosition( _In_reads_( bufSize )  PCBYTE buf,
@@ -1651,7 +1659,7 @@ VOID testSelftestPerf();
 
 VOID testSelftest();
 
-CHAR charToLower( CHAR c );
+extern "C" CHAR charToLower( CHAR c );
 
 #define PERF_WIPE_MAX_SIZE  64
 #define PERF_WIPE_N_OFFSETS      16
@@ -1683,6 +1691,7 @@ updateSymCryptStaticAlgs();
 VOID
 addRefAlgs();
 
+extern "C" {
 VOID
 initTestInfrastructure( int argc, _In_reads_( argc ) char * argv[] );
 
@@ -1691,12 +1700,15 @@ runFunctionalTests();
 
 VOID
 runPerfTests();
+}
 
 VOID
 runProfiling();
 
+extern "C" {
 VOID
 exitTestInfrastructure();
+}
 
 //
 // Function pointers to deal with various BCrypt versions
@@ -2021,8 +2033,10 @@ extern const SELFTEST_INFO g_selfTests_allocating[];
 VOID
 runTestThread( VOID * seed );
 
+extern "C" {
 VOID
 printHexArray( PCBYTE pData, SIZE_T nElements, SIZE_T elementSize );
+}
 
 #define XMM_SAVE_ERR 4506
 
@@ -2162,6 +2176,7 @@ getPerfTestModulus( UINT32 exKeySize );
 //
 // Checked alloc definitions
 //
+extern "C" {
 extern volatile INT64 g_nOutstandingCheckedAllocs;  // Global to track the number of outstanding allocations
 extern volatile INT64 g_nAllocs;                    // Global to track the number of allocations (only in single threaded runs)
 
@@ -2175,6 +2190,7 @@ VOID FreeWithChecksSc( PVOID ptr );
 
 PVOID SYMCRYPT_CALL AllocWithChecksMsBignum( SIZE_T nBytes );
 VOID FreeWithChecksMsBignum( PVOID ptr );
+}
 
 ////////
 //
@@ -2366,8 +2382,10 @@ extern DLGROUP_TESTBLOB g_DlGroup[ MAX_TEST_DLGROUPS ];
 extern UINT32 g_nDlgroups;
 extern UINT32 g_nDhNamedGroups;
 
+extern "C" {
 VOID
 fprintHex( FILE * f, PCBYTE pbData, SIZE_T cbData );
+}
 
 VOID rsaTestKeysGenerate();
 
@@ -2389,8 +2407,10 @@ template<class Implementation>
 PSYMCRYPT_DLGROUP
 dlgroupObjectFromTestBlob( PCDLGROUP_TESTBLOB pBlob );  // Must free object after use
 
+extern "C" {
 VOID
 ReverseMemCopy( PBYTE pbDst, PCBYTE pbSrc, SIZE_T cbSrc );
+}
 
 BOOL
 SYMCRYPT_CALL

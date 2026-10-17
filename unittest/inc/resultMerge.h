@@ -4,10 +4,26 @@
 // Copyright (c) Microsoft Corporation. Licensed under the MIT license. 
 //
 
+extern "C" {
+    void* scTestResultMergeCreate();
+    void scTestResultMergeDestroy(void* handle);
+    void scTestResultMergeAddResult(
+        void* handle,
+        void* pAlgImp,
+        const char* impName,
+        const char* algName,
+        ULONGLONG* pNumResults,
+        ULONGLONG* pNumErrorDisagree,
+        ULONGLONG* pNumErrorNoMajority,
+        PCBYTE pbData,
+        SIZE_T cbData);
+    void scTestResultMergeGetResult(void* handle, PBYTE pbResult, SIZE_T cbResult, BOOL countInvocation);
+}
+
 class ResultMerge {
 public:
-    ResultMerge();
-    ~ResultMerge();
+    ResultMerge() : m_handle(scTestResultMergeCreate()) {}
+    ~ResultMerge() { scTestResultMergeDestroy(m_handle); }
 
 private:
     ResultMerge( const ResultMerge & );
@@ -22,16 +38,11 @@ public:
     VOID getResult( 
         _Out_writes_( cbResult )    PBYTE   pbResult, 
                                     SIZE_T  cbResult, 
-                                    BOOL    countInvocation = TRUE );
+                                    BOOL    countInvocation = TRUE ) {
+        scTestResultMergeGetResult(m_handle, pbResult, cbResult, countInvocation);
+    }
 
 private:
-    typedef struct
-    {
-        AlgorithmImplementation *   pAlgImp;
-        BString                     strData;
-        SIZE_T                      nAgree;
-    } ResultItem;
-
-    std::vector<ResultItem> m_results;
+    void* m_handle;
 
 };

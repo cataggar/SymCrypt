@@ -39,29 +39,25 @@ typedef struct _KAT_RECORD
 } KAT_ITEM, *PKAT_ITEM;
 
 
+extern "C" {
+    class KatData;
+    void scTestKatGetItem(KatData* kat, void* pKatItem);
+    BYTE* scTestKatParseDataRaw(const char* val_ptr, size_t val_len, LONGLONG line, size_t* out_len);
+    void scTestKatFreeParsedData(BYTE* ptr, size_t len);
+    LONGLONG scTestKatParseIntegerRaw(const char* data_ptr);
+}
+
 class KatData
 {
 public:
-    KatData( _In_ PSTR name, _In_ PCCHAR pbData, SIZE_T cbData );
+    KatData( _In_ PSTR name, _In_ PCCHAR pbData, SIZE_T cbData )
+        : m_pbStart(pbData), m_pbData(pbData), m_pbEnd(pbData + cbData), m_line(1), m_name(name) {}
     // Provide name, pointer, and length of data to be parsed
     ~KatData() {};
 
 private:
     KatData( const KatData & );
     VOID operator=( const KatData & );
-
-
-    int next();
-
-    BOOL isEmpty();
-
-    VOID advance();
-
-    VOID skipSpace();
-
-    VOID skipNewlines();
-
-    BOOL atEol();
 
 public:
     PCCHAR      m_pbStart;          // Start of data
@@ -70,9 +66,11 @@ public:
     LONGLONG    m_line;             // Current line number
     LPSTR       m_name;             // Name of file/resource
 
-    LONGLONG    line();
+    LONGLONG    line() { return m_line; }
 
-    VOID getKatItem( PKAT_ITEM pKat );
+    VOID getKatItem( PKAT_ITEM pKat ) {
+        scTestKatGetItem(this, pKat);
+    }
 };
 
 BString katParseData( KAT_ITEM & item, LPCSTR name );

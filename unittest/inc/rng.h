@@ -7,40 +7,50 @@
 //
 
 
+extern "C" {
+    class Rng;
+    void scTestRngInit(Rng* rng);
+    void scTestRngDeinit(Rng* rng);
+    void scTestRngReset(Rng* rng, PCBYTE pbSeed, SIZE_T cbSeed);
+    BYTE scTestRngByte(Rng* rng);
+    UINT32 scTestRngUint32(Rng* rng);
+    SIZE_T scTestRngSizet(Rng* rng, SIZE_T upb);
+    SIZE_T scTestRngSizetRange(Rng* rng, SIZE_T min, SIZE_T upb);
+    SIZE_T scTestRngSizetNonUniform(Rng* rng, SIZE_T upb, SIZE_T uniformLimit, UINT32 logIncrease);
+    void scTestRngRandomSubRange(Rng* rng, SIZE_T bufSize, SIZE_T * pStart, SIZE_T * pLen);
+}
+
 class Rng
 {
 public:
-    Rng();
-    ~Rng();
+    Rng() { scTestRngInit(this); }
+    ~Rng() { scTestRngDeinit(this); }
 
 private:
     Rng( const Rng &);
     void operator=( const Rng & );
 
 public:
-    VOID reset( PCBYTE pbData, SIZE_T cbData );
+    VOID reset( PCBYTE pbData, SIZE_T cbData ) { scTestRngReset(this, pbData, cbData); }
 
     _Ret_range_( min, upb-1 )
-    SIZE_T sizet( SIZE_T min, SIZE_T upb ); // Return random value in range min,...,upb-1
+    SIZE_T sizet( SIZE_T min, SIZE_T upb ) { return scTestRngSizetRange(this, min, upb); }
 
     _Ret_range_( 0, upb-1 )
-    SIZE_T sizet( SIZE_T upb );             // Return random value in range 0,...,upb-1
+    SIZE_T sizet( SIZE_T upb ) { return scTestRngSizet(this, upb); }
 
     _Ret_range_( 0, upb-1 )
-    SIZE_T sizetNonUniform( SIZE_T upb, SIZE_T UniformProbLimit, UINT32 logIncrease );
-        // Return random value in range 0..upb-1
-        // Distribution is nonuniform.
-        // Distribution is the sum of a number of uniform distributions.
-        // The first one has prob 1/2 and extend 0..UniformProbLimit -1;
-        // Subsequent ones have half the probability and are 2^logIncrease bigger,
-        // limited by the upb.
+    SIZE_T sizetNonUniform( SIZE_T upb, SIZE_T UniformProbLimit, UINT32 logIncrease ) {
+        return scTestRngSizetNonUniform(this, upb, UniformProbLimit, logIncrease);
+    }
 
-    VOID randomSubRange( SIZE_T bufSize, SIZE_T * pStart, SIZE_T * pLen );
-        // Returns start & length of a random subrange in a buffer of size bufSize.
+    VOID randomSubRange( SIZE_T bufSize, SIZE_T * pStart, SIZE_T * pLen ) {
+        scTestRngRandomSubRange(this, bufSize, pStart, pLen);
+    }
 
-    BYTE byte();
+    BYTE byte() { return scTestRngByte(this); }
 
-    UINT32 uint32();
+    UINT32 uint32() { return scTestRngUint32(this); }
 
 private:
 

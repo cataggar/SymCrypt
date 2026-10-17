@@ -4,6 +4,8 @@
 // Copyright (c) Microsoft Corporation. Licensed under the MIT license. 
 //
 
+extern "C" {
+
 typedef VOID (* RNDD_TEST_FN)();
 
 VOID
@@ -21,4 +23,6 @@ rnddRegisterInvariantFunction( RNDD_TEST_FN func );
 
 VOID
 rnddRunTest( UINT32 nSeconds, UINT32 nThreads );        
+
+}
 
