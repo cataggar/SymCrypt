@@ -45,6 +45,9 @@ pub const cpuid = @import("cpuid.zig");
 pub const env = @import("env.zig");
 pub const rdrand = @import("rdrand.zig");
 pub const rdseed = @import("rdseed.zig");
+pub const hkdf = @import("hkdf.zig");
+pub const pbkdf2 = @import("pbkdf2.zig");
+pub const sp800_108 = @import("sp800_108.zig");
 
 comptime {
     _ = build_options;
@@ -83,6 +86,9 @@ comptime {
     _ = env;
     _ = rdrand;
     _ = rdseed;
+    _ = hkdf;
+    _ = pbkdf2;
+    _ = sp800_108;
 
     // Compile-time sanity checks on core types, masks, rotations, and magic constants.
     std.debug.assert(@sizeOf(types.SYMCRYPT_ERROR) == @sizeOf(c_int));
