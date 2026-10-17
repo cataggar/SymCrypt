@@ -28,6 +28,7 @@ pub const des_tables = @import("des_tables.zig");
 pub const des3 = @import("des3.zig");
 pub const desx = @import("desx.zig");
 pub const rc2 = @import("rc2.zig");
+pub const hmac = @import("hmac.zig");
 
 comptime {
     _ = build_options;
@@ -49,6 +50,7 @@ comptime {
     _ = des3;
     _ = desx;
     _ = rc2;
+    _ = hmac;
 
     // Compile-time sanity checks on core types, masks, rotations, and magic constants.
     std.debug.assert(@sizeOf(types.SYMCRYPT_ERROR) == @sizeOf(c_int));
