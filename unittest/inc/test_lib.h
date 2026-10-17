@@ -1561,6 +1561,7 @@ testKdfAlgorithms();
 VOID
 testDataAccessors();
 
+extern "C" {
 VOID
 testBlockCipherAlgorithms();
 
@@ -1575,15 +1576,18 @@ testStreamCipherAlgorithms();
 
 VOID
 testXtsAlgorithms();
+}
 
 VOID
 testIEEE802_11SaeCustom();
 
+extern "C" {
 VOID
 testTlsCbcHmacAlgorithms();
 
 VOID
 testAesCtrDrbg();
+}
 
 VOID
 testArithmetic();
@@ -1606,8 +1610,10 @@ testScsTable();
 VOID
 testScsTools();
 
+extern "C" {
 VOID
 testPaddingPkcs7();
+}
 
 VOID
 testEcc();

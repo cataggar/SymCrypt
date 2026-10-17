@@ -64,21 +64,16 @@ extern fn SymCryptRngAesInstantiate(
     pState: *anyopaque,
     pbKey: [*]const u8,
     cbKey: usize,
-    useDerivationFunction: u8,
 ) callconv(.c) u32;
 extern fn SymCryptRngAesReseed(
     pState: *anyopaque,
     pbEntropy: [*]const u8,
     cbEntropy: usize,
-    useDerivationFunction: u8,
 ) callconv(.c) void;
 extern fn SymCryptRngAesGenerate(
     pState: *anyopaque,
     pbDst: [*]u8,
     cbData: usize,
-    pbAdditional: ?[*]const u8,
-    cbAdditional: usize,
-    useDerivationFunction: u8,
 ) callconv(.c) void;
 
 extern fn SymCryptChaCha20Init(
@@ -365,10 +360,10 @@ pub export fn SymCryptAesCtrDrbgInit(
     if (cbKey == 0) {
         var entropy: [48]u8 = @splat(0);
         pExpandedKey.useDerivationFunction = 1;
-        return SymCryptRngAesInstantiate(pState, &entropy, entropy.len, pExpandedKey.useDerivationFunction);
+        return SymCryptRngAesInstantiate(pState, &entropy, entropy.len);
     } else {
         pExpandedKey.useDerivationFunction = pbKey[0];
-        return SymCryptRngAesInstantiate(pState, pbKey + 1, cbKey - 1, pExpandedKey.useDerivationFunction);
+        return SymCryptRngAesInstantiate(pState, pbKey + 1, cbKey - 1);
     }
 }
 
@@ -378,7 +373,8 @@ pub export fn SymCryptAesCtrDrbgReseed(
     pbEntropy: [*]const u8,
     cbEntropy: usize,
 ) callconv(.c) void {
-    SymCryptRngAesReseed(pState, pbEntropy, cbEntropy, pExpandedKey.useDerivationFunction);
+    _ = pExpandedKey;
+    SymCryptRngAesReseed(pState, pbEntropy, cbEntropy);
 }
 
 pub export fn SymCryptAesCtrDrbgGenerate(
@@ -388,8 +384,9 @@ pub export fn SymCryptAesCtrDrbgGenerate(
     pbDst: [*]u8,
     cbData: usize,
 ) callconv(.c) void {
+    _ = pExpandedKey;
     _ = pbSrc;
-    SymCryptRngAesGenerate(pState, pbDst, cbData, null, 0, pExpandedKey.useDerivationFunction);
+    SymCryptRngAesGenerate(pState, pbDst, cbData);
 }
 
 pub export fn SymCryptChaCha20Poly1305Init(

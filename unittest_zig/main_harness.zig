@@ -47,6 +47,9 @@ pub fn fatal(comptime fmt: []const u8, args: anytype) noreturn {
 }
 
 pub const fatalFmt = fatal;
+pub const g_rng = &rng.g_rng;
+
+extern fn snprintf(str: [*]u8, size: usize, format: [*:0]const u8, ...) callconv(.c) c_int;
 
 pub fn check(cond: bool, msg: [*:0]const u8) void {
     if (!cond) {
@@ -54,9 +57,34 @@ pub fn check(cond: bool, msg: [*:0]const u8) void {
     }
 }
 
-pub fn check3(cond: bool, comptime fmt: []const u8, arg: anytype) void {
+pub fn check3(cond: bool, comptime fmt: [:0]const u8, a: anytype) void {
     if (!cond) {
-        fatal(fmt, .{arg});
+        if (comptime std.mem.indexOfScalar(u8, fmt, '{') != null) {
+            fatal(fmt, .{a});
+        } else {
+            var buf: [2048]u8 = undefined;
+            _ = snprintf(&buf, buf.len, fmt.ptr, a);
+            buf[buf.len - 1] = 0;
+            fatalImpl(@ptrCast(&buf));
+        }
+    }
+}
+
+pub fn check4(cond: bool, msg: [*:0]const u8, a: anytype, b: anytype) void {
+    if (!cond) {
+        var buf: [2048]u8 = undefined;
+        _ = snprintf(&buf, buf.len, msg, a, b);
+        buf[buf.len - 1] = 0;
+        fatalImpl(@ptrCast(&buf));
+    }
+}
+
+pub fn check5(cond: bool, msg: [*:0]const u8, a: anytype, b: anytype, c: anytype) void {
+    if (!cond) {
+        var buf: [2048]u8 = undefined;
+        _ = snprintf(&buf, buf.len, msg, a, b, c);
+        buf[buf.len - 1] = 0;
+        fatalImpl(@ptrCast(&buf));
     }
 }
 
