@@ -7,7 +7,6 @@ const symcrypt_version = std.SemanticVersion{
 };
 
 const common_c_sources: []const []const u8 = &.{
-    "aes-neon.c",
     "dh.c",
     "dl_internal_groups.c",
     "dlgroup.c",
@@ -28,12 +27,6 @@ const common_c_sources: []const []const u8 = &.{
     "rsa_enc.c",
     "rsa_padding.c",
     "rsakey.c",
-};
-
-const x86_specialized_c_sources: []const []const u8 = &.{
-    "aes-xmm.c",
-    "aes-ymm.c",
-    "aes-zmm.c",
 };
 
 const unittest_cpp_sources: []const []const u8 = &.{
@@ -395,32 +388,6 @@ fn addSymCryptCommonSources(
     if (os_tag == .windows) {
         mod.addCSourceFile(.{
             .file = b.path("lib/IEEE802_11SaeCustom.c"),
-            .flags = base_c_flags,
-        });
-    } else if (arch == .x86_64 or arch == .x86) {
-        mod.addCSourceFile(.{
-            .file = b.path("lib/linux/intrinsics.c"),
-            .flags = base_c_flags,
-        });
-    }
-
-    if (arch == .x86_64 or arch == .x86) {
-        mod.addCSourceFile(.{
-            .file = b.path("lib/aes-xmm.c"),
-            .flags = getCFlags(b, target, optimize, targetFeatureFlags(&.{"+ssse3"})) catch @panic("OOM"),
-        });
-        mod.addCSourceFile(.{
-            .file = b.path("lib/aes-ymm.c"),
-            .flags = getCFlags(b, target, optimize, targetFeatureFlags(&.{ "+sse4.1", "+sse4.2", "+avx", "+avx2", "+vaes", "+vpclmulqdq" })) catch @panic("OOM"),
-        });
-        mod.addCSourceFile(.{
-            .file = b.path("lib/aes-zmm.c"),
-            .flags = getCFlags(b, target, optimize, targetFeatureFlags(&.{ "+sse4.1", "+sse4.2", "+avx", "+avx2", "+f16c", "+avx512f", "+avx512bw", "+avx512dq", "+avx512vl", "+evex512", "+vaes", "+vpclmulqdq" })) catch @panic("OOM"),
-        });
-    } else {
-        mod.addCSourceFiles(.{
-            .root = b.path("lib"),
-            .files = x86_specialized_c_sources,
             .flags = base_c_flags,
         });
     }
