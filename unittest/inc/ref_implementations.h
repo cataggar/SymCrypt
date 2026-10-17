@@ -32,3 +32,56 @@ public:
     REF_POLY1305_STATE state;
 };
 
+extern "C" {
+
+VOID
+SYMCRYPT_CALL
+RefPoly1305Init(
+    _Out_                                       PREF_POLY1305_STATE pState,
+    _In_reads_( SYMCRYPT_POLY1305_KEY_SIZE )    PCBYTE              pbKey );
+
+VOID
+SYMCRYPT_CALL
+RefPoly1305ProcessBlock(
+    _Inout_                 PREF_POLY1305_STATE pState,
+    _In_reads_( cbData )    PCBYTE              pbData,
+                            SIZE_T              cbData );
+
+VOID
+SYMCRYPT_CALL
+RefPoly1305Append(
+    _Inout_                 PREF_POLY1305_STATE pState,
+    _In_reads_( cbData )    PCBYTE              pbData,
+                            SIZE_T              cbData );
+
+VOID
+SYMCRYPT_CALL
+RefPoly1305Result(
+    _Inout_                                         PREF_POLY1305_STATE pState,
+    _Out_writes_( SYMCRYPT_POLY1305_RESULT_SIZE )   PBYTE               pbResult );
+
+VOID
+SYMCRYPT_CALL
+RefPoly1305(
+    _In_reads_( SYMCRYPT_POLY1305_KEY_SIZE )        PCBYTE  pbKey,
+    _In_reads_( cbData )                            PCBYTE  pbData,
+                                                    SIZE_T  cbData,
+    _Out_writes_( SYMCRYPT_POLY1305_RESULT_SIZE )   PBYTE   pbResult );
+
+BOOL
+SYMCRYPT_CALL
+RefIsPossiblePrime(
+    _In_                            PCSYMCRYPT_INT  piSrc,
+    _Out_writes_bytes_( cbScratch ) PBYTE           pbScratch,
+                                    SIZE_T          cbScratch );
+
+BOOL
+SYMCRYPT_CALL
+RefIsPrime(
+    _In_                            PCSYMCRYPT_INT  piSrc,
+    _Out_writes_bytes_( cbScratch ) PBYTE           pbScratch,
+                                    SIZE_T          cbScratch );
+
+}
+
+
