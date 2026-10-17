@@ -55,6 +55,9 @@ pub const sskdf = @import("sskdf.zig");
 pub const sha3 = @import("sha3.zig");
 pub const shake = @import("shake.zig");
 pub const kmac = @import("kmac.zig");
+pub const mlkem_primitives = @import("mlkem_primitives.zig");
+pub const mlkem = @import("mlkem.zig");
+pub const composite_mlkem = @import("composite_mlkem.zig");
 
 comptime {
     _ = build_options;
@@ -103,6 +106,9 @@ comptime {
     _ = sha3;
     _ = shake;
     _ = kmac;
+    _ = mlkem_primitives;
+    _ = mlkem;
+    _ = composite_mlkem;
 
     // Compile-time sanity checks on core types, masks, rotations, and magic constants.
     std.debug.assert(@sizeOf(types.SYMCRYPT_ERROR) == @sizeOf(c_int));
