@@ -98,6 +98,10 @@ pub const ccm = @import("ccm.zig");
 pub const ghash = @import("ghash.zig");
 pub const gcm = @import("gcm.zig");
 pub const xtsaes = @import("xtsaes.zig");
+pub const aes_neon = @import("aes_neon.zig");
+pub const aes_xmm = @import("aes_xmm.zig");
+pub const aes_ymm = @import("aes_ymm.zig");
+pub const aes_zmm = @import("aes_zmm.zig");
 
 comptime {
     _ = build_options;
@@ -189,6 +193,10 @@ comptime {
     _ = ghash;
     _ = gcm;
     _ = xtsaes;
+    _ = aes_neon;
+    _ = aes_xmm;
+    _ = aes_ymm;
+    _ = aes_zmm;
 
     // Compile-time sanity checks on core types, masks, rotations, and magic constants.
     std.debug.assert(@alignOf(types.SYMCRYPT_INT) == types.SYMCRYPT_ASYM_ALIGN_VALUE);
