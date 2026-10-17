@@ -459,3 +459,19 @@ pub inline fn XorByteIntoBuffer(pbBuf: [*]u8, cqBuf: usize, v: u8) void {
         STORE_LSBFIRST64(ptr, LOAD_LSBFIRST64(ptr) ^ v64);
     }
 }
+
+pub inline fn SymCryptCountTrailingZeros32(value: u32) u32 {
+    return @ctz(value);
+}
+
+pub inline fn SymCryptCountTrailingZeros64(value: u64) u32 {
+    return @ctz(value);
+}
+
+pub inline fn SymCryptCountLeadingZeros32(value: u32) u32 {
+    return @clz(value);
+}
+
+pub inline fn SymCryptCountLeadingZeros64(value: u64) u32 {
+    return @clz(value);
+}

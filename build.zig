@@ -24,9 +24,6 @@ const common_c_sources: []const []const u8 = &.{
     "eckey.c",
     "ecpoint.c",
     "ecurve.c",
-    "rsa_enc.c",
-    "rsa_padding.c",
-    "rsakey.c",
 };
 
 const unittest_cpp_sources: []const []const u8 = &.{
