@@ -48,6 +48,10 @@ pub const rdseed = @import("rdseed.zig");
 pub const hkdf = @import("hkdf.zig");
 pub const pbkdf2 = @import("pbkdf2.zig");
 pub const sp800_108 = @import("sp800_108.zig");
+pub const tlsprf = @import("tlsprf.zig");
+pub const ssh_kdf = @import("ssh_kdf.zig");
+pub const srtp_kdf = @import("srtp_kdf.zig");
+pub const sskdf = @import("sskdf.zig");
 
 comptime {
     _ = build_options;
@@ -89,6 +93,10 @@ comptime {
     _ = hkdf;
     _ = pbkdf2;
     _ = sp800_108;
+    _ = tlsprf;
+    _ = ssh_kdf;
+    _ = srtp_kdf;
+    _ = sskdf;
 
     // Compile-time sanity checks on core types, masks, rotations, and magic constants.
     std.debug.assert(@sizeOf(types.SYMCRYPT_ERROR) == @sizeOf(c_int));
