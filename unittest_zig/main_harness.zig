@@ -6,13 +6,26 @@ const rng = @import("rng.zig");
 const cb = @import("callback.zig");
 const testutil = @import("testutil.zig");
 
-pub extern fn print(format: [*:0]const u8, ...) callconv(.c) void;
-pub extern fn iprint(format: [*:0]const u8, ...) callconv(.c) void;
-pub extern fn dprint(format: [*:0]const u8, ...) callconv(.c) void;
-pub const printOutput = @import("perf.zig").printOutput;
+const perf_mod = @import("perf.zig");
+pub const printOutput = perf_mod.printOutput;
 extern fn scTestGenRandom(pbBuf: [*]u8, cbBuf: usize) callconv(.c) c_int;
 extern fn scTestSleepMs(ms: u32) callconv(.c) void;
 extern fn scTestIsAlgorithmPresent(name_ptr: [*]const u8, name_len: usize, isPrefix: u32) callconv(.c) u32;
+
+pub export fn print(s: [*:0]const u8) callconv(.c) void {
+    const slice = std.mem.span(s);
+    perf_mod.scTestAddOutput(slice.ptr, slice.len);
+}
+
+pub export fn iprint(s: [*:0]const u8) callconv(.c) void {
+    const slice = std.mem.span(s);
+    perf_mod.scTestAddDirectOutput(slice.ptr, slice.len);
+}
+
+pub export fn dprint(s: [*:0]const u8) callconv(.c) void {
+    const slice = std.mem.span(s);
+    perf_mod.scTestAddDirectOutput(slice.ptr, slice.len);
+}
 
 pub fn fillRandom(buf: []u8) error{RandomFailed}!void {
     if (buf.len == 0) return;
@@ -34,17 +47,20 @@ pub fn fmtBufZ(buf: []u8, comptime fmt: []const u8, args: anytype) [*:0]const u8
 
 pub fn zprint(comptime fmt: []const u8, args: anytype) void {
     var buf: [4096]u8 = undefined;
-    print("%s", fmtBufZ(&buf, fmt, args));
+    const s = std.fmt.bufPrint(&buf, fmt, args) catch &buf;
+    perf_mod.scTestAddOutput(s.ptr, s.len);
 }
 
 pub fn ziprint(comptime fmt: []const u8, args: anytype) void {
     var buf: [4096]u8 = undefined;
-    iprint("%s", fmtBufZ(&buf, fmt, args));
+    const s = std.fmt.bufPrint(&buf, fmt, args) catch &buf;
+    perf_mod.scTestAddDirectOutput(s.ptr, s.len);
 }
 
 pub fn zdprint(comptime fmt: []const u8, args: anytype) void {
     var buf: [4096]u8 = undefined;
-    dprint("%s", fmtBufZ(&buf, fmt, args));
+    const s = std.fmt.bufPrint(&buf, fmt, args) catch &buf;
+    perf_mod.scTestAddDirectOutput(s.ptr, s.len);
 }
 
 pub fn vprint(cond: bool, comptime fmt: []const u8, args: anytype) void {
@@ -125,6 +141,18 @@ pub export fn isAlgorithmPresent(algName: [*]const u8, isPrefix: c_int) callconv
 pub export fn scTestIsAlgorithmPresentCstr(name: [*:0]const u8, isPrefix: c_int) callconv(.c) c_int {
     const slice = std.mem.span(name);
     return if (scTestIsAlgorithmPresent(slice.ptr, slice.len, if (isPrefix != 0) 1 else 0) != 0) 1 else 0;
+}
+
+pub fn isAlgPresentSlice(slice: []const u8, isPrefix: bool) bool {
+    return scTestIsAlgorithmPresent(slice.ptr, slice.len, if (isPrefix) 1 else 0) != 0;
+}
+
+pub fn isAlgFilterMatch(name: []const u8) bool {
+    return g_algorithmsToTestZig.containsPrefix(name);
+}
+
+pub fn isImpPresent(name: []const u8) bool {
+    return g_implementationsToTestZig.containsPrefix(name);
 }
 
 const kat_mod = @import("kat.zig");
@@ -250,6 +278,7 @@ pub export var g_algorithmNames = [_]?[*:0]const u8{
     "ModSquare",
     "ModInv",
     "ModExp",
+    "Montgomery",
     "ScsTable",
     "IEEE802_11SaeCustom",
     "TrialDivision",
@@ -416,7 +445,6 @@ extern fn initVectorRegisters() callconv(.c) void;
 extern fn verifyVectorRegisters() callconv(.c) void;
 extern fn loadDynamicModuleFromPath(dynamicModulePath: [*:0]const u8) callconv(.c) ?*anyopaque;
 extern fn getDynamicSymbolPointerFromString(hDynamicModule: ?*anyopaque, pSymbolName: [*:0]const u8, symbolType: u32) callconv(.c) ?*anyopaque;
-extern fn SctestDisableCpuFeatures(disable: u32) callconv(.c) u32;
 
 extern fn scTestRunSingleLayerCppTests() callconv(.c) void;
 extern fn scTestRunMultiImpCppTests() callconv(.c) void;

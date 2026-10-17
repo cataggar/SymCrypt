@@ -306,7 +306,7 @@ fn testRngs() void {
 
             skipData = (optMultiImp.?.m_nImps == 0);
             if (!skipData) {
-                h.iprint("%s%s", sep, @as([*:0]const u8, @ptrCast(&optMultiImp.?.m_algorithmName)));
+                h.ziprint("{s}{s}", .{ std.mem.span(sep), std.mem.span(@as([*:0]const u8, @ptrCast(&optMultiImp.?.m_algorithmName))) });
                 sep = ", ";
                 doneAnything = true;
             }

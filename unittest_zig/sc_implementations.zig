@@ -6,8 +6,8 @@ const h = @import("main_harness.zig");
 const check = h.check;
 
 pub const SYMCRYPT_NO_ERROR: u32 = 0;
-pub const SYMCRYPT_AUTHENTICATION_FAILURE: u32 = 0x8002;
-pub const SYMCRYPT_INVALID_ARGUMENT: u32 = 0x8009;
+pub const SYMCRYPT_AUTHENTICATION_FAILURE: u32 = 0x8007;
+pub const SYMCRYPT_INVALID_ARGUMENT: u32 = 0x800E;
 
 pub const STATUS_SUCCESS: i32 = 0;
 pub const STATUS_UNSUCCESSFUL: i32 = @bitCast(@as(u32, 0xC0000001));
@@ -19,12 +19,25 @@ pub const DynamicSymbolType = enum(u32) {
     array = 3,
 };
 
+pub const SYMCRYPT_OID = extern struct {
+    cbOID: u32,
+    pbOID: [*]const u8,
+};
+
 pub const ImpKind = enum {
     sc,
     sc_static,
     sc_dynamic,
 
-    pub fn name(comptime self: ImpKind) []const u8 {
+    pub fn name(self: ImpKind) []const u8 {
+        return switch (self) {
+            .sc => "SymCrypt",
+            .sc_static => "SymCryptStatic",
+            .sc_dynamic => "SymCryptDynamic",
+        };
+    }
+
+    pub fn nameZ(self: ImpKind) [*:0]const u8 {
         return switch (self) {
             .sc => "SymCrypt",
             .sc_static => "SymCryptStatic",
@@ -41,68 +54,517 @@ extern fn getDynamicSymbolPointerFromString(
     symbolType: u32,
 ) callconv(.c) ?*anyopaque;
 
-extern fn SymCryptWipe(pbData: [*]u8, cbData: usize) callconv(.c) void;
-extern fn SymCryptEqual(pb1: [*]const u8, pb2: [*]const u8, cb: usize) callconv(.c) u8;
+pub const SYMCRYPT_MD2_STATE_EXPORT_SIZE: usize = 80;
+pub const SYMCRYPT_MD4_STATE_EXPORT_SIZE: usize = 116;
+pub const SYMCRYPT_MD5_STATE_EXPORT_SIZE: usize = 116;
+pub const SYMCRYPT_SHA1_STATE_EXPORT_SIZE: usize = 120;
+pub const SYMCRYPT_SHA224_STATE_EXPORT_SIZE: usize = 132;
+pub const SYMCRYPT_SHA256_STATE_EXPORT_SIZE: usize = 132;
+pub const SYMCRYPT_SHA384_STATE_EXPORT_SIZE: usize = 236;
+pub const SYMCRYPT_SHA512_STATE_EXPORT_SIZE: usize = 236;
+pub const SYMCRYPT_SHA512_224_STATE_EXPORT_SIZE: usize = 236;
+pub const SYMCRYPT_SHA512_256_STATE_EXPORT_SIZE: usize = 236;
+pub const SYMCRYPT_KECCAK_STATE_EXPORT_SIZE: usize = 234;
+pub const SYMCRYPT_SHA3_224_STATE_EXPORT_SIZE: usize = SYMCRYPT_KECCAK_STATE_EXPORT_SIZE;
+pub const SYMCRYPT_SHA3_256_STATE_EXPORT_SIZE: usize = SYMCRYPT_KECCAK_STATE_EXPORT_SIZE;
+pub const SYMCRYPT_SHA3_384_STATE_EXPORT_SIZE: usize = SYMCRYPT_KECCAK_STATE_EXPORT_SIZE;
+pub const SYMCRYPT_SHA3_512_STATE_EXPORT_SIZE: usize = SYMCRYPT_KECCAK_STATE_EXPORT_SIZE;
+pub const SYMCRYPT_SHAKE128_STATE_EXPORT_SIZE: usize = SYMCRYPT_KECCAK_STATE_EXPORT_SIZE;
+pub const SYMCRYPT_SHAKE256_STATE_EXPORT_SIZE: usize = SYMCRYPT_KECCAK_STATE_EXPORT_SIZE;
 
-extern fn SymCryptAesExpandKey(pExpandedKey: *anyopaque, pbKey: [*]const u8, cbKey: usize) callconv(.c) u32;
-extern fn SymCryptAesCtrMsb32(
-    pExpandedKey: *const anyopaque,
-    pbChainingValue: [*]u8,
-    pbSrc: [*]const u8,
-    pbDst: [*]u8,
-    cbData: usize,
-) callconv(.c) void;
-extern fn SymCryptAesCtrMsb64(
-    pExpandedKey: *const anyopaque,
-    pbChainingValue: [*]u8,
-    pbSrc: [*]const u8,
-    pbDst: [*]u8,
-    cbData: usize,
-) callconv(.c) void;
+pub extern fn SymCryptWipe(pbData: ?[*]u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptEqual(pb1: ?[*]const u8, pb2: ?[*]const u8, cb: usize) callconv(.c) u8;
 
-extern fn SymCryptRngAesInstantiate(
-    pState: *anyopaque,
-    pbKey: [*]const u8,
-    cbKey: usize,
-) callconv(.c) u32;
-extern fn SymCryptRngAesReseed(
-    pState: *anyopaque,
-    pbEntropy: [*]const u8,
-    cbEntropy: usize,
-) callconv(.c) void;
-extern fn SymCryptRngAesGenerate(
-    pState: *anyopaque,
-    pbDst: [*]u8,
-    cbData: usize,
-) callconv(.c) void;
+// Global algorithm / blockcipher / seed pointers
+pub extern const SymCryptMd2Algorithm: *const anyopaque;
+pub extern const SymCryptMd4Algorithm: *const anyopaque;
+pub extern const SymCryptMd5Algorithm: *const anyopaque;
+pub extern const SymCryptSha1Algorithm: *const anyopaque;
+pub extern const SymCryptSha224Algorithm: *const anyopaque;
+pub extern const SymCryptSha256Algorithm: *const anyopaque;
+pub extern const SymCryptSha384Algorithm: *const anyopaque;
+pub extern const SymCryptSha512Algorithm: *const anyopaque;
+pub extern const SymCryptSha512_224Algorithm: *const anyopaque;
+pub extern const SymCryptSha512_256Algorithm: *const anyopaque;
+pub extern const SymCryptSha3_224Algorithm: *const anyopaque;
+pub extern const SymCryptSha3_256Algorithm: *const anyopaque;
+pub extern const SymCryptSha3_384Algorithm: *const anyopaque;
+pub extern const SymCryptSha3_512Algorithm: *const anyopaque;
+pub extern const SymCryptShake128HashAlgorithm: *const anyopaque;
+pub extern const SymCryptShake256HashAlgorithm: *const anyopaque;
 
-extern fn SymCryptChaCha20Init(
-    pState: *SYMCRYPT_CHACHA20_STATE,
-    pbKey: [*]const u8,
-    cbKey: usize,
-    pbNonce: [*]const u8,
-    cbNonce: usize,
-    offset: u64,
-) callconv(.c) u32;
-extern fn SymCryptChaCha20Crypt(
-    pState: *SYMCRYPT_CHACHA20_STATE,
-    pbSrc: [*]const u8,
-    pbDst: [*]u8,
-    cbData: usize,
-) callconv(.c) void;
-extern fn SymCryptPoly1305Init(
-    pState: *SYMCRYPT_POLY1305_STATE,
-    pbKey: [*]const u8,
-) callconv(.c) void;
-extern fn SymCryptPoly1305Append(
-    pState: *SYMCRYPT_POLY1305_STATE,
-    pbData: [*]const u8,
-    cbData: usize,
-) callconv(.c) void;
-extern fn SymCryptPoly1305Result(
-    pState: *SYMCRYPT_POLY1305_STATE,
-    pbResult: [*]u8,
-) callconv(.c) void;
+pub extern const SymCryptHmacMd5Algorithm: *const anyopaque;
+pub extern const SymCryptHmacSha1Algorithm: *const anyopaque;
+pub extern const SymCryptHmacSha224Algorithm: *const anyopaque;
+pub extern const SymCryptHmacSha256Algorithm: *const anyopaque;
+pub extern const SymCryptHmacSha384Algorithm: *const anyopaque;
+pub extern const SymCryptHmacSha512Algorithm: *const anyopaque;
+pub extern const SymCryptHmacSha512_224Algorithm: *const anyopaque;
+pub extern const SymCryptHmacSha512_256Algorithm: *const anyopaque;
+pub extern const SymCryptHmacSha3_224Algorithm: *const anyopaque;
+pub extern const SymCryptHmacSha3_256Algorithm: *const anyopaque;
+pub extern const SymCryptHmacSha3_384Algorithm: *const anyopaque;
+pub extern const SymCryptHmacSha3_512Algorithm: *const anyopaque;
+pub extern const SymCryptAesCmacAlgorithm: *const anyopaque;
+pub extern const SymCryptMarvin32Algorithm: *const anyopaque;
+pub extern const SymCryptKmac128Algorithm: *const anyopaque;
+pub extern const SymCryptKmac256Algorithm: *const anyopaque;
+pub extern const SymCryptMarvin32DefaultSeed: *const anyopaque;
+
+pub extern const SymCryptAesBlockCipher: *const anyopaque;
+pub extern const SymCryptDesBlockCipher: *const anyopaque;
+pub extern const SymCrypt3DesBlockCipher: *const anyopaque;
+pub extern const SymCryptDesxBlockCipher: *const anyopaque;
+pub extern const SymCryptRc2BlockCipher: *const anyopaque;
+
+// Hashes
+pub extern fn SymCryptMd2Init(pState: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptMd2Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptMd2Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptMd2StateCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptMd2(pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptMd2StateExport(pState: *const anyopaque, pbBlob: [*]u8) callconv(.c) void;
+pub extern fn SymCryptMd2StateImport(pState: *anyopaque, pbBlob: [*]const u8) callconv(.c) u32;
+
+pub extern fn SymCryptMd4Init(pState: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptMd4Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptMd4Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptMd4StateCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptMd4(pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptMd4StateExport(pState: *const anyopaque, pbBlob: [*]u8) callconv(.c) void;
+pub extern fn SymCryptMd4StateImport(pState: *anyopaque, pbBlob: [*]const u8) callconv(.c) u32;
+
+pub extern fn SymCryptMd5Init(pState: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptMd5Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptMd5Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptMd5StateCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptMd5(pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptMd5StateExport(pState: *const anyopaque, pbBlob: [*]u8) callconv(.c) void;
+pub extern fn SymCryptMd5StateImport(pState: *anyopaque, pbBlob: [*]const u8) callconv(.c) u32;
+
+pub extern fn SymCryptSha1Init(pState: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptSha1Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptSha1Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha1StateCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptSha1(pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha1StateExport(pState: *const anyopaque, pbBlob: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha1StateImport(pState: *anyopaque, pbBlob: [*]const u8) callconv(.c) u32;
+
+pub extern fn SymCryptSha224Init(pState: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptSha224Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptSha224Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha224StateCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptSha224(pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha224StateExport(pState: *const anyopaque, pbBlob: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha224StateImport(pState: *anyopaque, pbBlob: [*]const u8) callconv(.c) u32;
+
+pub extern fn SymCryptSha256Init(pState: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptSha256Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptSha256Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha256StateCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptSha256(pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha256StateExport(pState: *const anyopaque, pbBlob: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha256StateImport(pState: *anyopaque, pbBlob: [*]const u8) callconv(.c) u32;
+
+pub extern fn SymCryptSha384Init(pState: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptSha384Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptSha384Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha384StateCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptSha384(pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha384StateExport(pState: *const anyopaque, pbBlob: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha384StateImport(pState: *anyopaque, pbBlob: [*]const u8) callconv(.c) u32;
+
+pub extern fn SymCryptSha512Init(pState: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptSha512Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptSha512Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha512StateCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptSha512(pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha512StateExport(pState: *const anyopaque, pbBlob: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha512StateImport(pState: *anyopaque, pbBlob: [*]const u8) callconv(.c) u32;
+
+pub extern fn SymCryptSha512_224Init(pState: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptSha512_224Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptSha512_224Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha512_224StateCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptSha512_224(pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha512_224StateExport(pState: *const anyopaque, pbBlob: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha512_224StateImport(pState: *anyopaque, pbBlob: [*]const u8) callconv(.c) u32;
+
+pub extern fn SymCryptSha512_256Init(pState: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptSha512_256Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptSha512_256Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha512_256StateCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptSha512_256(pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha512_256StateExport(pState: *const anyopaque, pbBlob: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha512_256StateImport(pState: *anyopaque, pbBlob: [*]const u8) callconv(.c) u32;
+
+pub extern fn SymCryptSha3_224Init(pState: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptSha3_224Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptSha3_224Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha3_224StateCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptSha3_224(pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha3_224StateExport(pState: *const anyopaque, pbBlob: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha3_224StateImport(pState: *anyopaque, pbBlob: [*]const u8) callconv(.c) u32;
+
+pub extern fn SymCryptSha3_256Init(pState: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptSha3_256Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptSha3_256Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha3_256StateCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptSha3_256(pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha3_256StateExport(pState: *const anyopaque, pbBlob: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha3_256StateImport(pState: *anyopaque, pbBlob: [*]const u8) callconv(.c) u32;
+
+pub extern fn SymCryptSha3_384Init(pState: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptSha3_384Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptSha3_384Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha3_384StateCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptSha3_384(pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha3_384StateExport(pState: *const anyopaque, pbBlob: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha3_384StateImport(pState: *anyopaque, pbBlob: [*]const u8) callconv(.c) u32;
+
+pub extern fn SymCryptSha3_512Init(pState: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptSha3_512Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptSha3_512Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha3_512StateCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptSha3_512(pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha3_512StateExport(pState: *const anyopaque, pbBlob: [*]u8) callconv(.c) void;
+pub extern fn SymCryptSha3_512StateImport(pState: *anyopaque, pbBlob: [*]const u8) callconv(.c) u32;
+
+// Parallel Hash
+pub extern fn SymCryptParallelSha256Init(pStates: *anyopaque, nStates: usize) callconv(.c) void;
+pub extern fn SymCryptParallelSha256Process(pStates: *anyopaque, nStates: usize, pOperations: *const anyopaque, nOperations: usize, pbScratch: [*]u8, cbScratch: usize) callconv(.c) u32;
+pub extern fn SymCryptParallelSha384Init(pStates: *anyopaque, nStates: usize) callconv(.c) void;
+pub extern fn SymCryptParallelSha384Process(pStates: *anyopaque, nStates: usize, pOperations: *const anyopaque, nOperations: usize, pbScratch: [*]u8, cbScratch: usize) callconv(.c) u32;
+pub extern fn SymCryptParallelSha512Init(pStates: *anyopaque, nStates: usize) callconv(.c) void;
+pub extern fn SymCryptParallelSha512Process(pStates: *anyopaque, nStates: usize, pOperations: *const anyopaque, nOperations: usize, pbScratch: [*]u8, cbScratch: usize) callconv(.c) u32;
+
+// XOF / Shake
+pub extern fn SymCryptShake128Init(pState: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptShake128Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptShake128Extract(pState: *anyopaque, pbResult: [*]u8, cbResult: usize, bWipe: u8) callconv(.c) void;
+pub extern fn SymCryptShake128Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptShake128StateCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptShake128(pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8, cbResult: usize) callconv(.c) void;
+pub extern fn SymCryptShake128StateExport(pState: *const anyopaque, pbBlob: [*]u8) callconv(.c) void;
+pub extern fn SymCryptShake128StateImport(pState: *anyopaque, pbBlob: [*]const u8) callconv(.c) u32;
+
+pub extern fn SymCryptShake256Init(pState: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptShake256Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptShake256Extract(pState: *anyopaque, pbResult: [*]u8, cbResult: usize, bWipe: u8) callconv(.c) void;
+pub extern fn SymCryptShake256Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptShake256StateCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptShake256(pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8, cbResult: usize) callconv(.c) void;
+pub extern fn SymCryptShake256StateExport(pState: *const anyopaque, pbBlob: [*]u8) callconv(.c) void;
+pub extern fn SymCryptShake256StateImport(pState: *anyopaque, pbBlob: [*]const u8) callconv(.c) u32;
+
+// cSHAKE
+pub extern fn SymCryptCShake128Init(pState: *anyopaque, pbFunctionName: ?[*]const u8, cbFunctionName: usize, pbCustomizationString: ?[*]const u8, cbCustomizationString: usize) callconv(.c) void;
+pub extern fn SymCryptCShake128Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptCShake128Extract(pState: *anyopaque, pbResult: [*]u8, cbResult: usize, bWipe: u8) callconv(.c) void;
+pub extern fn SymCryptCShake128Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptCShake128StateCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptCShake128(pbFunctionName: ?[*]const u8, cbFunctionName: usize, pbCustomizationString: ?[*]const u8, cbCustomizationString: usize, pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8, cbResult: usize) callconv(.c) void;
+
+pub extern fn SymCryptCShake256Init(pState: *anyopaque, pbFunctionName: ?[*]const u8, cbFunctionName: usize, pbCustomizationString: ?[*]const u8, cbCustomizationString: usize) callconv(.c) void;
+pub extern fn SymCryptCShake256Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptCShake256Extract(pState: *anyopaque, pbResult: [*]u8, cbResult: usize, bWipe: u8) callconv(.c) void;
+pub extern fn SymCryptCShake256Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptCShake256StateCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptCShake256(pbFunctionName: ?[*]const u8, cbFunctionName: usize, pbCustomizationString: ?[*]const u8, cbCustomizationString: usize, pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8, cbResult: usize) callconv(.c) void;
+
+// KMAC
+pub extern fn SymCryptKmac128ExpandKey(pExpandedKey: *anyopaque, pbKey: ?[*]const u8, cbKey: usize) callconv(.c) u32;
+pub extern fn SymCryptKmac128ExpandKeyEx(pExpandedKey: *anyopaque, pbKey: ?[*]const u8, cbKey: usize, pbCustomizationString: ?[*]const u8, cbCustomizationString: usize) callconv(.c) u32;
+pub extern fn SymCryptKmac128KeyCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptKmac128Init(pState: *anyopaque, pExpandedKey: *const anyopaque) callconv(.c) void;
+pub extern fn SymCryptKmac128Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptKmac128Extract(pState: *anyopaque, pbResult: [*]u8, cbResult: usize, bWipe: u8) callconv(.c) void;
+pub extern fn SymCryptKmac128Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptKmac128ResultEx(pState: *anyopaque, pbResult: [*]u8, cbResult: usize) callconv(.c) void;
+pub extern fn SymCryptKmac128StateCopy(pSrc: *const anyopaque, pExpandedKey: ?*const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptKmac128(pExpandedKey: *const anyopaque, pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptKmac128Ex(pExpandedKey: *const anyopaque, pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8, cbResult: usize) callconv(.c) void;
+
+pub extern fn SymCryptKmac256ExpandKey(pExpandedKey: *anyopaque, pbKey: ?[*]const u8, cbKey: usize) callconv(.c) u32;
+pub extern fn SymCryptKmac256ExpandKeyEx(pExpandedKey: *anyopaque, pbKey: ?[*]const u8, cbKey: usize, pbCustomizationString: ?[*]const u8, cbCustomizationString: usize) callconv(.c) u32;
+pub extern fn SymCryptKmac256KeyCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptKmac256Init(pState: *anyopaque, pExpandedKey: *const anyopaque) callconv(.c) void;
+pub extern fn SymCryptKmac256Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptKmac256Extract(pState: *anyopaque, pbResult: [*]u8, cbResult: usize, bWipe: u8) callconv(.c) void;
+pub extern fn SymCryptKmac256Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptKmac256ResultEx(pState: *anyopaque, pbResult: [*]u8, cbResult: usize) callconv(.c) void;
+pub extern fn SymCryptKmac256StateCopy(pSrc: *const anyopaque, pExpandedKey: ?*const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptKmac256(pExpandedKey: *const anyopaque, pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptKmac256Ex(pExpandedKey: *const anyopaque, pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8, cbResult: usize) callconv(.c) void;
+
+// MACs
+pub extern fn SymCryptHmacMd5ExpandKey(pExpandedKey: *anyopaque, pbKey: ?[*]const u8, cbKey: usize) callconv(.c) u32;
+pub extern fn SymCryptHmacMd5KeyCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacMd5Init(pState: *anyopaque, pExpandedKey: *const anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacMd5Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptHmacMd5Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptHmacMd5StateCopy(pSrc: *const anyopaque, pExpandedKey: ?*const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacMd5(pExpandedKey: *const anyopaque, pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
+
+pub extern fn SymCryptHmacSha1ExpandKey(pExpandedKey: *anyopaque, pbKey: ?[*]const u8, cbKey: usize) callconv(.c) u32;
+pub extern fn SymCryptHmacSha1KeyCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha1Init(pState: *anyopaque, pExpandedKey: *const anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha1Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptHmacSha1Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptHmacSha1StateCopy(pSrc: *const anyopaque, pExpandedKey: ?*const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha1(pExpandedKey: *const anyopaque, pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
+
+pub extern fn SymCryptHmacSha224ExpandKey(pExpandedKey: *anyopaque, pbKey: ?[*]const u8, cbKey: usize) callconv(.c) u32;
+pub extern fn SymCryptHmacSha224KeyCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha224Init(pState: *anyopaque, pExpandedKey: *const anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha224Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptHmacSha224Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptHmacSha224StateCopy(pSrc: *const anyopaque, pExpandedKey: ?*const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha224(pExpandedKey: *const anyopaque, pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
+
+pub extern fn SymCryptHmacSha256ExpandKey(pExpandedKey: *anyopaque, pbKey: ?[*]const u8, cbKey: usize) callconv(.c) u32;
+pub extern fn SymCryptHmacSha256KeyCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha256Init(pState: *anyopaque, pExpandedKey: *const anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha256Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptHmacSha256Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptHmacSha256StateCopy(pSrc: *const anyopaque, pExpandedKey: ?*const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha256(pExpandedKey: *const anyopaque, pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
+
+pub extern fn SymCryptHmacSha384ExpandKey(pExpandedKey: *anyopaque, pbKey: ?[*]const u8, cbKey: usize) callconv(.c) u32;
+pub extern fn SymCryptHmacSha384KeyCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha384Init(pState: *anyopaque, pExpandedKey: *const anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha384Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptHmacSha384Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptHmacSha384StateCopy(pSrc: *const anyopaque, pExpandedKey: ?*const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha384(pExpandedKey: *const anyopaque, pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
+
+pub extern fn SymCryptHmacSha512ExpandKey(pExpandedKey: *anyopaque, pbKey: ?[*]const u8, cbKey: usize) callconv(.c) u32;
+pub extern fn SymCryptHmacSha512KeyCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha512Init(pState: *anyopaque, pExpandedKey: *const anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha512Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptHmacSha512Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptHmacSha512StateCopy(pSrc: *const anyopaque, pExpandedKey: ?*const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha512(pExpandedKey: *const anyopaque, pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
+
+pub extern fn SymCryptHmacSha512_224ExpandKey(pExpandedKey: *anyopaque, pbKey: ?[*]const u8, cbKey: usize) callconv(.c) u32;
+pub extern fn SymCryptHmacSha512_224KeyCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha512_224Init(pState: *anyopaque, pExpandedKey: *const anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha512_224Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptHmacSha512_224Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptHmacSha512_224StateCopy(pSrc: *const anyopaque, pExpandedKey: ?*const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha512_224(pExpandedKey: *const anyopaque, pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
+
+pub extern fn SymCryptHmacSha512_256ExpandKey(pExpandedKey: *anyopaque, pbKey: ?[*]const u8, cbKey: usize) callconv(.c) u32;
+pub extern fn SymCryptHmacSha512_256KeyCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha512_256Init(pState: *anyopaque, pExpandedKey: *const anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha512_256Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptHmacSha512_256Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptHmacSha512_256StateCopy(pSrc: *const anyopaque, pExpandedKey: ?*const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha512_256(pExpandedKey: *const anyopaque, pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
+
+pub extern fn SymCryptHmacSha3_224ExpandKey(pExpandedKey: *anyopaque, pbKey: ?[*]const u8, cbKey: usize) callconv(.c) u32;
+pub extern fn SymCryptHmacSha3_224KeyCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha3_224Init(pState: *anyopaque, pExpandedKey: *const anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha3_224Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptHmacSha3_224Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptHmacSha3_224StateCopy(pSrc: *const anyopaque, pExpandedKey: ?*const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha3_224(pExpandedKey: *const anyopaque, pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
+
+pub extern fn SymCryptHmacSha3_256ExpandKey(pExpandedKey: *anyopaque, pbKey: ?[*]const u8, cbKey: usize) callconv(.c) u32;
+pub extern fn SymCryptHmacSha3_256KeyCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha3_256Init(pState: *anyopaque, pExpandedKey: *const anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha3_256Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptHmacSha3_256Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptHmacSha3_256StateCopy(pSrc: *const anyopaque, pExpandedKey: ?*const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha3_256(pExpandedKey: *const anyopaque, pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
+
+pub extern fn SymCryptHmacSha3_384ExpandKey(pExpandedKey: *anyopaque, pbKey: ?[*]const u8, cbKey: usize) callconv(.c) u32;
+pub extern fn SymCryptHmacSha3_384KeyCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha3_384Init(pState: *anyopaque, pExpandedKey: *const anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha3_384Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptHmacSha3_384Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptHmacSha3_384StateCopy(pSrc: *const anyopaque, pExpandedKey: ?*const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha3_384(pExpandedKey: *const anyopaque, pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
+
+pub extern fn SymCryptHmacSha3_512ExpandKey(pExpandedKey: *anyopaque, pbKey: ?[*]const u8, cbKey: usize) callconv(.c) u32;
+pub extern fn SymCryptHmacSha3_512KeyCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha3_512Init(pState: *anyopaque, pExpandedKey: *const anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha3_512Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptHmacSha3_512Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptHmacSha3_512StateCopy(pSrc: *const anyopaque, pExpandedKey: ?*const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptHmacSha3_512(pExpandedKey: *const anyopaque, pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
+
+pub extern fn SymCryptAesCmacExpandKey(pExpandedKey: *anyopaque, pbKey: ?[*]const u8, cbKey: usize) callconv(.c) u32;
+pub extern fn SymCryptAesCmacKeyCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptAesCmacInit(pState: *anyopaque, pExpandedKey: *const anyopaque) callconv(.c) void;
+pub extern fn SymCryptAesCmacAppend(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptAesCmacResult(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptAesCmacStateCopy(pSrc: *const anyopaque, pExpandedKey: ?*const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptAesCmac(pExpandedKey: *const anyopaque, pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
+
+pub extern fn SymCryptMarvin32ExpandSeed(pExpandedSeed: *anyopaque, pbSeed: ?[*]const u8, cbSeed: usize) callconv(.c) u32;
+pub extern fn SymCryptMarvin32SeedCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptMarvin32Init(pState: *anyopaque, pExpandedSeed: *const anyopaque) callconv(.c) void;
+pub extern fn SymCryptMarvin32Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptMarvin32Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptMarvin32StateCopy(pSrc: *const anyopaque, pExpandedSeed: ?*const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptMarvin32(pExpandedSeed: *const anyopaque, pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
+
+pub extern fn SymCryptPoly1305Init(pState: *anyopaque, pbKey: ?[*]const u8) callconv(.c) void;
+pub extern fn SymCryptPoly1305Append(pState: *anyopaque, pbData: ?[*]const u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptPoly1305Result(pState: *anyopaque, pbResult: [*]u8) callconv(.c) void;
+pub extern fn SymCryptPoly1305(pbKey: ?[*]const u8, pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
+
+// KDFs
+pub extern fn SymCryptPbkdf2ExpandKey(pExpandedKey: *anyopaque, macAlgorithm: *const anyopaque, pbKey: ?[*]const u8, cbKey: usize) callconv(.c) u32;
+pub extern fn SymCryptPbkdf2Derive(pExpandedKey: *const anyopaque, pbSalt: ?[*]const u8, cbSalt: usize, iterationCnt: u64, pbResult: [*]u8, cbResult: usize) callconv(.c) u32;
+pub extern fn SymCryptPbkdf2(macAlgorithm: *const anyopaque, pbKey: ?[*]const u8, cbKey: usize, pbSalt: ?[*]const u8, cbSalt: usize, iterationCnt: u64, pbResult: [*]u8, cbResult: usize) callconv(.c) u32;
+
+pub extern fn SymCryptSp800_108ExpandKey(pExpandedKey: *anyopaque, macAlgorithm: *const anyopaque, pbKey: ?[*]const u8, cbKey: usize) callconv(.c) u32;
+pub extern fn SymCryptSp800_108Derive(pExpandedKey: *const anyopaque, pbLabel: ?[*]const u8, cbLabel: usize, pbContext: ?[*]const u8, cbContext: usize, pbResult: [*]u8, cbResult: usize) callconv(.c) u32;
+pub extern fn SymCryptSp800_108(macAlgorithm: *const anyopaque, pbKey: ?[*]const u8, cbKey: usize, pbLabel: ?[*]const u8, cbLabel: usize, pbContext: ?[*]const u8, cbContext: usize, pbResult: [*]u8, cbResult: usize) callconv(.c) u32;
+
+pub extern fn SymCryptTlsPrf1_1ExpandKey(pExpandedKey: *anyopaque, pbKey: ?[*]const u8, cbKey: usize) callconv(.c) u32;
+pub extern fn SymCryptTlsPrf1_1Derive(pExpandedKey: *const anyopaque, pbLabel: ?[*]const u8, cbLabel: usize, pbSeed: ?[*]const u8, cbSeed: usize, pbResult: [*]u8, cbResult: usize) callconv(.c) u32;
+pub extern fn SymCryptTlsPrf1_1(pbKey: ?[*]const u8, cbKey: usize, pbLabel: ?[*]const u8, cbLabel: usize, pbSeed: ?[*]const u8, cbSeed: usize, pbResult: [*]u8, cbResult: usize) callconv(.c) u32;
+
+pub extern fn SymCryptTlsPrf1_2ExpandKey(pExpandedKey: *anyopaque, macAlgorithm: *const anyopaque, pbKey: ?[*]const u8, cbKey: usize) callconv(.c) u32;
+pub extern fn SymCryptTlsPrf1_2Derive(pExpandedKey: *const anyopaque, pbLabel: ?[*]const u8, cbLabel: usize, pbSeed: ?[*]const u8, cbSeed: usize, pbResult: [*]u8, cbResult: usize) callconv(.c) u32;
+pub extern fn SymCryptTlsPrf1_2(macAlgorithm: *const anyopaque, pbKey: ?[*]const u8, cbKey: usize, pbLabel: ?[*]const u8, cbLabel: usize, pbSeed: ?[*]const u8, cbSeed: usize, pbResult: [*]u8, cbResult: usize) callconv(.c) u32;
+
+pub extern fn SymCryptHkdfExpandKey(pExpandedKey: *anyopaque, macAlgorithm: *const anyopaque, pbIkm: ?[*]const u8, cbIkm: usize, pbSalt: ?[*]const u8, cbSalt: usize) callconv(.c) u32;
+pub extern fn SymCryptHkdfExtractPrk(macAlgorithm: *const anyopaque, pbIkm: ?[*]const u8, cbIkm: usize, pbSalt: ?[*]const u8, cbSalt: usize, pbPrk: [*]u8, cbPrk: usize) callconv(.c) u32;
+pub extern fn SymCryptHkdfPrkExpandKey(pExpandedKey: *anyopaque, macAlgorithm: *const anyopaque, pbPrk: [*]const u8, cbPrk: usize) callconv(.c) u32;
+pub extern fn SymCryptHkdfDerive(pExpandedKey: *const anyopaque, pbInfo: ?[*]const u8, cbInfo: usize, pbResult: [*]u8, cbResult: usize) callconv(.c) u32;
+pub extern fn SymCryptHkdf(macAlgorithm: *const anyopaque, pbIkm: ?[*]const u8, cbIkm: usize, pbSalt: ?[*]const u8, cbSalt: usize, pbInfo: ?[*]const u8, cbInfo: usize, pbResult: [*]u8, cbResult: usize) callconv(.c) u32;
+
+pub extern fn SymCryptSshKdfExpandKey(pExpandedKey: *anyopaque, hashAlgorithm: *const anyopaque, pbKey: ?[*]const u8, cbKey: usize) callconv(.c) u32;
+pub extern fn SymCryptSshKdfDerive(pExpandedKey: *const anyopaque, pbHashValue: ?[*]const u8, cbHashValue: usize, label: u8, pbSessionId: ?[*]const u8, cbSessionId: usize, pbOutput: [*]u8, cbOutput: usize) callconv(.c) u32;
+pub extern fn SymCryptSshKdf(hashAlgorithm: *const anyopaque, pbKey: ?[*]const u8, cbKey: usize, pbHashValue: ?[*]const u8, cbHashValue: usize, label: u8, pbSessionId: ?[*]const u8, cbSessionId: usize, pbOutput: [*]u8, cbOutput: usize) callconv(.c) u32;
+
+pub extern fn SymCryptSrtpKdfExpandKey(pExpandedKey: *anyopaque, pbKey: ?[*]const u8, cbKey: usize) callconv(.c) u32;
+pub extern fn SymCryptSrtpKdfDerive(pExpandedKey: *const anyopaque, pbSalt: ?[*]const u8, cbSalt: usize, uKeyDerivationRate: u32, uIndex: u64, uIndexWidth: u32, label: u8, pbOutput: [*]u8, cbOutput: usize) callconv(.c) u32;
+pub extern fn SymCryptSrtpKdf(pbKey: ?[*]const u8, cbKey: usize, pbSalt: ?[*]const u8, cbSalt: usize, uKeyDerivationRate: u32, uIndex: u64, uIndexWidth: u32, label: u8, pbOutput: [*]u8, cbOutput: usize) callconv(.c) u32;
+
+pub extern fn SymCryptSskdfMacExpandSalt(pExpandedSalt: *anyopaque, macAlgorithm: *const anyopaque, pbSalt: ?[*]const u8, cbSalt: usize) callconv(.c) u32;
+pub extern fn SymCryptSskdfMacDerive(pExpandedSalt: *const anyopaque, cbExpansionLen: usize, pbKey: ?[*]const u8, cbKey: usize, pbInfo: ?[*]const u8, cbInfo: usize, pbOutput: [*]u8, cbOutput: usize) callconv(.c) u32;
+pub extern fn SymCryptSskdfMac(macAlgorithm: *const anyopaque, cbExpansionLen: usize, pbKey: ?[*]const u8, cbKey: usize, pbSalt: ?[*]const u8, cbSalt: usize, pbInfo: ?[*]const u8, cbInfo: usize, pbOutput: [*]u8, cbOutput: usize) callconv(.c) u32;
+pub extern fn SymCryptSskdfHash(hashAlgorithm: *const anyopaque, cbExpansionLen: usize, pbKey: ?[*]const u8, cbKey: usize, pbInfo: ?[*]const u8, cbInfo: usize, pbOutput: [*]u8, cbOutput: usize) callconv(.c) u32;
+
+// Block Ciphers
+pub extern fn SymCryptAesExpandKey(pExpandedKey: *anyopaque, pbKey: ?[*]const u8, cbKey: usize) callconv(.c) u32;
+pub extern fn SymCryptAesKeyCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptAesEncrypt(pExpandedKey: *const anyopaque, pbSrc: ?[*]const u8, pbDst: [*]u8) callconv(.c) void;
+pub extern fn SymCryptAesDecrypt(pExpandedKey: *const anyopaque, pbSrc: ?[*]const u8, pbDst: [*]u8) callconv(.c) void;
+pub extern fn SymCryptAesEcbEncrypt(pExpandedKey: *const anyopaque, pbSrc: ?[*]const u8, pbDst: [*]u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptAesEcbDecrypt(pExpandedKey: *const anyopaque, pbSrc: ?[*]const u8, pbDst: [*]u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptAesCbcEncrypt(pExpandedKey: *const anyopaque, pbChainingValue: [*]u8, pbSrc: ?[*]const u8, pbDst: [*]u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptAesCbcDecrypt(pExpandedKey: *const anyopaque, pbChainingValue: [*]u8, pbSrc: ?[*]const u8, pbDst: [*]u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptAesCtrMsb32(pExpandedKey: *const anyopaque, pbChainingValue: [*]u8, pbSrc: ?[*]const u8, pbDst: [*]u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptAesCtrMsb64(pExpandedKey: *const anyopaque, pbChainingValue: [*]u8, pbSrc: ?[*]const u8, pbDst: [*]u8, cbData: usize) callconv(.c) void;
+
+pub extern fn SymCryptDesExpandKey(pExpandedKey: *anyopaque, pbKey: ?[*]const u8, cbKey: usize) callconv(.c) u32;
+pub extern fn SymCryptDesKeyCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptDesEncrypt(pExpandedKey: *const anyopaque, pbSrc: ?[*]const u8, pbDst: [*]u8) callconv(.c) void;
+pub extern fn SymCryptDesDecrypt(pExpandedKey: *const anyopaque, pbSrc: ?[*]const u8, pbDst: [*]u8) callconv(.c) void;
+
+pub extern fn SymCrypt3DesExpandKey(pExpandedKey: *anyopaque, pbKey: ?[*]const u8, cbKey: usize) callconv(.c) u32;
+pub extern fn SymCrypt3DesKeyCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCrypt3DesEncrypt(pExpandedKey: *const anyopaque, pbSrc: ?[*]const u8, pbDst: [*]u8) callconv(.c) void;
+pub extern fn SymCrypt3DesDecrypt(pExpandedKey: *const anyopaque, pbSrc: ?[*]const u8, pbDst: [*]u8) callconv(.c) void;
+
+pub extern fn SymCryptDesxExpandKey(pExpandedKey: *anyopaque, pbKey: ?[*]const u8, cbKey: usize) callconv(.c) u32;
+pub extern fn SymCryptDesxKeyCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptDesxEncrypt(pExpandedKey: *const anyopaque, pbSrc: ?[*]const u8, pbDst: [*]u8) callconv(.c) void;
+pub extern fn SymCryptDesxDecrypt(pExpandedKey: *const anyopaque, pbSrc: ?[*]const u8, pbDst: [*]u8) callconv(.c) void;
+
+pub extern fn SymCryptRc2ExpandKey(pExpandedKey: *anyopaque, pbKey: ?[*]const u8, cbKey: usize) callconv(.c) u32;
+pub extern fn SymCryptRc2ExpandKeyEx(pExpandedKey: *anyopaque, pbKey: ?[*]const u8, cbKey: usize, EffectiveKeyLength: u32) callconv(.c) u32;
+pub extern fn SymCryptRc2KeyCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptRc2Encrypt(pExpandedKey: *const anyopaque, pbSrc: ?[*]const u8, pbDst: [*]u8) callconv(.c) void;
+pub extern fn SymCryptRc2Decrypt(pExpandedKey: *const anyopaque, pbSrc: ?[*]const u8, pbDst: [*]u8) callconv(.c) void;
+pub extern fn SymCryptRc2CbcEncrypt(pExpandedKey: *const anyopaque, pbChainingValue: [*]u8, pbSrc: ?[*]const u8, pbDst: [*]u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptRc2CbcDecrypt(pExpandedKey: *const anyopaque, pbChainingValue: [*]u8, pbSrc: ?[*]const u8, pbDst: [*]u8, cbData: usize) callconv(.c) void;
+
+pub extern fn SymCryptEcbEncrypt(pBlockCipher: *const anyopaque, pExpandedKey: *const anyopaque, pbSrc: ?[*]const u8, pbDst: [*]u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptEcbDecrypt(pBlockCipher: *const anyopaque, pExpandedKey: *const anyopaque, pbSrc: ?[*]const u8, pbDst: [*]u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptCbcEncrypt(pBlockCipher: *const anyopaque, pExpandedKey: *const anyopaque, pbChainingValue: [*]u8, pbSrc: ?[*]const u8, pbDst: [*]u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptCbcDecrypt(pBlockCipher: *const anyopaque, pExpandedKey: *const anyopaque, pbChainingValue: [*]u8, pbSrc: ?[*]const u8, pbDst: [*]u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptCfbEncrypt(pBlockCipher: *const anyopaque, cbShift: usize, pExpandedKey: *const anyopaque, pbChainingValue: [*]u8, pbSrc: ?[*]const u8, pbDst: [*]u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptCfbDecrypt(pBlockCipher: *const anyopaque, cbShift: usize, pExpandedKey: *const anyopaque, pbChainingValue: [*]u8, pbSrc: ?[*]const u8, pbDst: [*]u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptCtrMsb32(pBlockCipher: *const anyopaque, pExpandedKey: *const anyopaque, pbChainingValue: [*]u8, pbSrc: ?[*]const u8, pbDst: [*]u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptCtrMsb64(pBlockCipher: *const anyopaque, pExpandedKey: *const anyopaque, pbChainingValue: [*]u8, pbSrc: ?[*]const u8, pbDst: [*]u8, cbData: usize) callconv(.c) void;
+
+// AuthEnc (CCM / GCM / ChaCha20Poly1305)
+pub extern fn SymCryptCcmValidateParameters(pBlockCipher: *const anyopaque, cbNonce: usize, cbAuthData: u64, cbData: u64, cbTag: usize) callconv(.c) u32;
+pub extern fn SymCryptCcmInit(pState: *anyopaque, pBlockCipher: *const anyopaque, pExpandedKey: *const anyopaque, pbNonce: ?[*]const u8, cbNonce: usize, pbAuthData: ?[*]const u8, cbAuthData: usize, cbData: u64, cbTag: usize) callconv(.c) void;
+pub extern fn SymCryptCcmEncryptPart(pState: *anyopaque, pbSrc: ?[*]const u8, pbDst: ?[*]u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptCcmDecryptPart(pState: *anyopaque, pbSrc: ?[*]const u8, pbDst: ?[*]u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptCcmEncryptFinal(pState: *anyopaque, pbTag: [*]u8, cbTag: usize) callconv(.c) void;
+pub extern fn SymCryptCcmDecryptFinal(pState: *anyopaque, pbTag: [*]const u8, cbTag: usize) callconv(.c) u32;
+pub extern fn SymCryptCcmStateCopy(pSrc: *const anyopaque, pExpandedKey: ?*const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptCcmEncrypt(pBlockCipher: *const anyopaque, pExpandedKey: *const anyopaque, pbNonce: ?[*]const u8, cbNonce: usize, pbAuthData: ?[*]const u8, cbAuthData: usize, pbSrc: ?[*]const u8, pbDst: ?[*]u8, cbData: usize, pbTag: [*]u8, cbTag: usize) callconv(.c) void;
+pub extern fn SymCryptCcmDecrypt(pBlockCipher: *const anyopaque, pExpandedKey: *const anyopaque, pbNonce: ?[*]const u8, cbNonce: usize, pbAuthData: ?[*]const u8, cbAuthData: usize, pbSrc: ?[*]const u8, pbDst: ?[*]u8, cbData: usize, pbTag: [*]const u8, cbTag: usize) callconv(.c) u32;
+
+pub extern fn SymCryptGcmValidateParameters(pBlockCipher: *const anyopaque, cbNonce: usize, cbAuthData: u64, cbData: u64, cbTag: usize) callconv(.c) u32;
+pub extern fn SymCryptGcmExpandKey(pExpandedKey: *anyopaque, pBlockCipher: *const anyopaque, pbKey: ?[*]const u8, cbKey: usize) callconv(.c) u32;
+pub extern fn SymCryptGcmKeyCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptGcmInit(pState: *anyopaque, pExpandedKey: *const anyopaque, pbNonce: ?[*]const u8, cbNonce: usize) callconv(.c) void;
+pub extern fn SymCryptGcmStateCopy(pSrc: *const anyopaque, pExpandedKey: ?*const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptGcmAuthPart(pState: *anyopaque, pbAuthData: ?[*]const u8, cbAuthData: usize) callconv(.c) void;
+pub extern fn SymCryptGcmEncryptPart(pState: *anyopaque, pbSrc: ?[*]const u8, pbDst: ?[*]u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptGcmDecryptPart(pState: *anyopaque, pbSrc: ?[*]const u8, pbDst: ?[*]u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptGcmEncryptFinal(pState: *anyopaque, pbTag: [*]u8, cbTag: usize) callconv(.c) void;
+pub extern fn SymCryptGcmDecryptFinal(pState: *anyopaque, pbTag: [*]const u8, cbTag: usize) callconv(.c) u32;
+pub extern fn SymCryptGcmEncrypt(pExpandedKey: *const anyopaque, pbNonce: ?[*]const u8, cbNonce: usize, pbAuthData: ?[*]const u8, cbAuthData: usize, pbSrc: ?[*]const u8, pbDst: ?[*]u8, cbData: usize, pbTag: [*]u8, cbTag: usize) callconv(.c) void;
+pub extern fn SymCryptGcmDecrypt(pExpandedKey: *const anyopaque, pbNonce: ?[*]const u8, cbNonce: usize, pbAuthData: ?[*]const u8, cbAuthData: usize, pbSrc: ?[*]const u8, pbDst: ?[*]u8, cbData: usize, pbTag: [*]const u8, cbTag: usize) callconv(.c) u32;
+
+pub extern fn SymCryptChaCha20Poly1305Encrypt(pbKey: ?[*]const u8, cbKey: usize, pbNonce: ?[*]const u8, cbNonce: usize, pbAuthData: ?[*]const u8, cbAuthData: usize, pbSrc: ?[*]const u8, pbDst: ?[*]u8, cbData: usize, pbTag: [*]u8, cbTag: usize) callconv(.c) void;
+pub extern fn SymCryptChaCha20Poly1305Decrypt(pbKey: ?[*]const u8, cbKey: usize, pbNonce: ?[*]const u8, cbNonce: usize, pbAuthData: ?[*]const u8, cbAuthData: usize, pbSrc: ?[*]const u8, pbDst: ?[*]u8, cbData: usize, pbTag: [*]const u8, cbTag: usize) callconv(.c) u32;
+
+// Stream Ciphers
+pub extern fn SymCryptRc4Init(pState: *anyopaque, pbKey: ?[*]const u8, cbKey: usize) callconv(.c) u32;
+pub extern fn SymCryptRc4Crypt(pState: *anyopaque, pbSrc: [*]const u8, pbDst: [*]u8, cbData: usize) callconv(.c) void;
+
+pub extern fn SymCryptChaCha20Init(pState: *anyopaque, pbKey: ?[*]const u8, cbKey: usize, pbNonce: ?[*]const u8, cbNonce: usize, offset: u64) callconv(.c) u32;
+pub extern fn SymCryptChaCha20SetOffset(pState: *anyopaque, offset: u64) callconv(.c) void;
+pub extern fn SymCryptChaCha20Crypt(pState: *anyopaque, pbSrc: [*]const u8, pbDst: [*]u8, cbData: usize) callconv(.c) void;
+
+// RNG
+pub extern fn SymCryptRngAesInstantiate(pState: *anyopaque, pbKey: ?[*]const u8, cbKey: usize) callconv(.c) u32;
+pub extern fn SymCryptRngAesReseed(pState: *anyopaque, pbEntropy: ?[*]const u8, cbEntropy: usize) callconv(.c) u32;
+pub extern fn SymCryptRngAesGenerate(pState: *anyopaque, pbDst: [*]u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptRngAesUninstantiate(pState: *anyopaque) callconv(.c) void;
+
+pub extern fn SymCryptRngAesFips140_2Instantiate(pState: *anyopaque, pbKey: ?[*]const u8, cbKey: usize) callconv(.c) u32;
+pub extern fn SymCryptRngAesFips140_2Reseed(pState: *anyopaque, pbEntropy: ?[*]const u8, cbEntropy: usize) callconv(.c) u32;
+pub extern fn SymCryptRngAesFips140_2Generate(pState: *anyopaque, pbDst: [*]u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptRngAesFips140_2Uninstantiate(pState: *anyopaque) callconv(.c) void;
+
+pub extern fn SymCryptProvideEntropy(pbEntropy: ?[*]const u8, cbEntropy: usize) callconv(.c) void;
+pub extern fn SymCryptRandom(pbRandom: [*]u8, cbRandom: usize) callconv(.c) void;
+
+// XTS-AES
+pub extern fn SymCryptXtsAesExpandKey(pExpandedKey: *anyopaque, pbKey: [*]const u8, cbKey: usize) callconv(.c) u32;
+pub extern fn SymCryptXtsAesExpandKeyEx(pExpandedKey: *anyopaque, pbKey: [*]const u8, cbKey: usize, flags: u32) callconv(.c) u32;
+pub extern fn SymCryptXtsAesKeyCopy(pSrc: *const anyopaque, pDst: *anyopaque) callconv(.c) void;
+pub extern fn SymCryptXtsAesEncrypt(pExpandedKey: *const anyopaque, cbDataUnit: usize, tweak: u64, pbSrc: [*]const u8, pbDst: [*]u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptXtsAesDecrypt(pExpandedKey: *const anyopaque, cbDataUnit: usize, tweak: u64, pbSrc: [*]const u8, pbDst: [*]u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptXtsAesEncryptWith128bTweak(pExpandedKey: *const anyopaque, cbDataUnit: usize, pbTweak: [*]const u8, pbSrc: [*]const u8, pbDst: [*]u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptXtsAesDecryptWith128bTweak(pExpandedKey: *const anyopaque, cbDataUnit: usize, pbTweak: [*]const u8, pbSrc: [*]const u8, pbDst: [*]u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptXtsAesEncryptDataUnit(pExpandedKey: *const anyopaque, pbTweakBlock: [*]u8, pbSrc: [*]const u8, pbDst: [*]u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptXtsAesDecryptDataUnit(pExpandedKey: *const anyopaque, pbTweakBlock: [*]u8, pbSrc: [*]const u8, pbDst: [*]u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptXtsAesEncryptDataUnitEx(pExpandedKey: *const anyopaque, pbTweakBlock: [*]const u8, pbScratch: [*]u8, pbSrc: [*]const u8, pbDst: [*]u8, cbData: usize) callconv(.c) void;
+pub extern fn SymCryptXtsAesDecryptDataUnitEx(pExpandedKey: *const anyopaque, pbTweakBlock: [*]const u8, pbScratch: [*]u8, pbSrc: [*]const u8, pbDst: [*]u8, cbData: usize) callconv(.c) void;
+
+// AES-KW / AES-KWP
+pub extern fn SymCryptAesKwEncrypt(pExpandedKey: *const anyopaque, pbSrc: ?[*]const u8, cbSrc: usize, pbDst: [*]u8, cbDst: usize, pcbResult: *usize) callconv(.c) u32;
+pub extern fn SymCryptAesKwDecrypt(pExpandedKey: *const anyopaque, pbSrc: ?[*]const u8, cbSrc: usize, pbDst: [*]u8, cbDst: usize, pcbResult: *usize) callconv(.c) u32;
+pub extern fn SymCryptAesKwpEncrypt(pExpandedKey: *const anyopaque, pbSrc: ?[*]const u8, cbSrc: usize, pbDst: [*]u8, cbDst: usize, pcbResult: *usize) callconv(.c) u32;
+pub extern fn SymCryptAesKwpDecrypt(pExpandedKey: *const anyopaque, pbSrc: ?[*]const u8, cbSrc: usize, pbDst: [*]u8, cbDst: usize, pcbResult: *usize) callconv(.c) u32;
+
+// TLS-CBC-HMAC
+pub extern fn SymCryptTlsCbcHmacVerify(pMacAlgorithm: *const anyopaque, pExpandedKey: *const anyopaque, pState: *anyopaque, pbData: [*]const u8, cbData: usize) callconv(.c) u32;
 
 // ============================================================================
 // Dynamic / Vector-Register-Verified Dispatch Helpers
@@ -374,7 +836,7 @@ pub export fn SymCryptAesCtrDrbgReseed(
     cbEntropy: usize,
 ) callconv(.c) void {
     _ = pExpandedKey;
-    SymCryptRngAesReseed(pState, pbEntropy, cbEntropy);
+    _ = SymCryptRngAesReseed(pState, pbEntropy, cbEntropy);
 }
 
 pub export fn SymCryptAesCtrDrbgGenerate(

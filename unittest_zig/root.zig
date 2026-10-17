@@ -48,12 +48,13 @@ pub const test_kem = @import("test_kem.zig");
 pub const test_pq_dsa = @import("test_pq_dsa.zig");
 pub const test_hpke = @import("test_hpke.zig");
 pub const perf = @import("perf.zig");
-
-extern fn scTestCppMain(argc: c_int, argv: [*][*:0]u8) callconv(.c) c_int;
+pub const env_unittest = @import("env_unittest.zig");
+pub const cpp_bridge_asym = @import("cpp_bridge_asym.zig");
+pub const cpp_bridge = @import("cpp_bridge.zig");
 
 pub export fn main(argc: c_int, argv: [*][*:0]u8) callconv(.c) c_int {
     std.debug.maybeEnableSegfaultHandler();
-    return scTestCppMain(argc, argv);
+    return env_unittest.scTestCppMain(argc, argv);
 }
 
 comptime {
@@ -103,4 +104,7 @@ comptime {
     _ = test_pq_dsa;
     _ = test_hpke;
     _ = perf;
+    _ = env_unittest;
+    _ = cpp_bridge_asym;
+    _ = cpp_bridge;
 }
