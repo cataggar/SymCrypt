@@ -29,6 +29,11 @@ pub const des3 = @import("des3.zig");
 pub const desx = @import("desx.zig");
 pub const rc2 = @import("rc2.zig");
 pub const hmac = @import("hmac.zig");
+pub const blockciphermodes = @import("blockciphermodes.zig");
+pub const padding_pkcs7 = @import("padding_pkcs7.zig");
+pub const tls_cbc_verify = @import("tls_cbc_verify.zig");
+pub const aescmac = @import("aescmac.zig");
+pub const aeskw = @import("aeskw.zig");
 
 comptime {
     _ = build_options;
@@ -51,6 +56,11 @@ comptime {
     _ = desx;
     _ = rc2;
     _ = hmac;
+    _ = blockciphermodes;
+    _ = padding_pkcs7;
+    _ = tls_cbc_verify;
+    _ = aescmac;
+    _ = aeskw;
 
     // Compile-time sanity checks on core types, masks, rotations, and magic constants.
     std.debug.assert(@sizeOf(types.SYMCRYPT_ERROR) == @sizeOf(c_int));
