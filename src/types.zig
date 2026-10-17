@@ -777,3 +777,49 @@ pub const SYMCRYPT_LMS_PARAMS = extern struct {
 };
 pub const PSYMCRYPT_LMS_PARAMS = *SYMCRYPT_LMS_PARAMS;
 pub const PCSYMCRYPT_LMS_PARAMS = *const SYMCRYPT_LMS_PARAMS;
+
+// ==============================================================================================
+// AES-CTR DRBG & Session Structures
+// ==============================================================================================
+
+pub const SYMCRYPT_RNG_AES_MIN_INSTANTIATE_SIZE: usize = 32 + 16;
+pub const SYMCRYPT_RNG_AES_MIN_RESEED_SIZE: usize = 32;
+pub const SYMCRYPT_RNG_AES_MAX_SEED_SIZE: usize = 256;
+pub const SYMCRYPT_RNG_AES_INTERNAL_SEED_SIZE: usize = 32 + 16;
+
+pub const SYMCRYPT_RNG_AES_STATE = extern struct {
+    keyAndV: [32 + 16]BYTE align(SYMCRYPT_ALIGN_VALUE),
+    previousBlock: [16]BYTE,
+    requestCounter: UINT64,
+    fips140_2Check: BOOLEAN,
+    magic: SIZE_T,
+};
+pub const PSYMCRYPT_RNG_AES_STATE = *SYMCRYPT_RNG_AES_STATE;
+pub const PCSYMCRYPT_RNG_AES_STATE = *const SYMCRYPT_RNG_AES_STATE;
+
+pub const SYMCRYPT_RNG_AES_FIPS140_2_STATE = extern struct {
+    rng: SYMCRYPT_RNG_AES_STATE align(SYMCRYPT_ALIGN_VALUE),
+};
+pub const PSYMCRYPT_RNG_AES_FIPS140_2_STATE = *SYMCRYPT_RNG_AES_FIPS140_2_STATE;
+pub const PCSYMCRYPT_RNG_AES_FIPS140_2_STATE = *const SYMCRYPT_RNG_AES_FIPS140_2_STATE;
+
+pub const SYMCRYPT_FLAG_SESSION_ENCRYPT: u32 = 0x1;
+pub const SYMCRYPT_SESSION_MAX_MESSAGE_NUMBER: u64 = 0xffffffff00000000;
+pub const SYMCRYPT_USE_CAS128: bool = CPU_AMD64 or CPU_ARM64;
+pub const SYMCRYPT_ALIGN_SESSION: usize = if (SYMCRYPT_USE_CAS128) 16 else 8;
+
+pub const SYMCRYPT_SESSION_REPLAY_STATE = extern struct {
+    replayMask: UINT64 align(SYMCRYPT_ALIGN_SESSION),
+    messageNumber: UINT64,
+};
+pub const PSYMCRYPT_SESSION_REPLAY_STATE = *SYMCRYPT_SESSION_REPLAY_STATE;
+pub const PCSYMCRYPT_SESSION_REPLAY_STATE = *const SYMCRYPT_SESSION_REPLAY_STATE;
+
+pub const SYMCRYPT_SESSION = extern struct {
+    replayState: SYMCRYPT_SESSION_REPLAY_STATE align(SYMCRYPT_ALIGN_SESSION),
+    senderId: UINT32,
+    flags: UINT32,
+    pMutex: PVOID,
+};
+pub const PSYMCRYPT_SESSION = *SYMCRYPT_SESSION;
+pub const PCSYMCRYPT_SESSION = *const SYMCRYPT_SESSION;

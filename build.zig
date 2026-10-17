@@ -9,7 +9,6 @@ const symcrypt_version = std.SemanticVersion{
 const common_c_sources: []const []const u8 = &.{
     "a_dispatch.c",
     "aes-neon.c",
-    "aesCtrDrbg.c",
     "ccm.c",
     "crt.c",
     "dh.c",
@@ -43,7 +42,6 @@ const common_c_sources: []const []const u8 = &.{
     "rsa_enc.c",
     "rsa_padding.c",
     "rsakey.c",
-    "session.c",
     "sha256Par.c",
     "sha512Par.c",
     "xmss.c",
