@@ -2410,7 +2410,6 @@ dlgroupObjectFromTestBlob( PCDLGROUP_TESTBLOB pBlob );  // Must free object afte
 extern "C" {
 VOID
 ReverseMemCopy( PBYTE pbDst, PCBYTE pbSrc, SIZE_T cbSrc );
-}
 
 BOOL
 SYMCRYPT_CALL
@@ -2418,3 +2417,5 @@ RefIsPrime(
     _In_                            PCSYMCRYPT_INT  piSrc,
     _Out_writes_bytes_( cbScratch ) PBYTE           pbScratch,
                                     SIZE_T          cbScratch );
+}
+

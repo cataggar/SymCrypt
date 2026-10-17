@@ -46,8 +46,6 @@ const unittest_cpp_sources: []const []const u8 = &.{
     "cpp_bridge.cpp",
     "perf.cpp",
     "perfPrint.cpp",
-    "ref_implementations.cpp",
-    "sc_implementations.cpp",
     "testAccessors.cpp",
     "testAesCtrDrbg.cpp",
     "testArithmetic.cpp",

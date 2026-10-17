@@ -10,6 +10,8 @@ pub const printtable = @import("printtable.zig");
 pub const result_merge = @import("result_merge.zig");
 pub const kat = @import("kat.zig");
 pub const main_harness = @import("main_harness.zig");
+pub const ref_implementations = @import("ref_implementations.zig");
+pub const sc_implementations = @import("sc_implementations.zig");
 
 extern fn scTestCppMain(argc: c_int, argv: [*][*:0]u8) callconv(.c) c_int;
 
@@ -27,4 +29,6 @@ comptime {
     _ = result_merge;
     _ = kat;
     _ = main_harness;
+    _ = ref_implementations;
+    _ = sc_implementations;
 }
