@@ -64,6 +64,13 @@ pub const mldsa_primitives = @import("mldsa_primitives.zig");
 pub const mldsa = @import("mldsa.zig");
 pub const composite_encoding = @import("composite_encoding.zig");
 pub const composite_mldsa = @import("composite_mldsa.zig");
+pub const aes_tables = @import("aes_tables.zig");
+pub const aes_key = @import("aes_key.zig");
+pub const aes_c = @import("aes_c.zig");
+pub const aes_asm = @import("aes_asm.zig");
+pub const aes_default = @import("aes_default.zig");
+pub const aes_default_bc = @import("aes_default_bc.zig");
+pub const aes_selftest = @import("aes_selftest.zig");
 
 comptime {
     _ = build_options;
@@ -121,6 +128,13 @@ comptime {
     _ = mldsa;
     _ = composite_encoding;
     _ = composite_mldsa;
+    _ = aes_tables;
+    _ = aes_key;
+    _ = aes_c;
+    _ = aes_asm;
+    _ = aes_default;
+    _ = aes_default_bc;
+    _ = aes_selftest;
 
     // Compile-time sanity checks on core types, masks, rotations, and magic constants.
     std.debug.assert(@sizeOf(types.SYMCRYPT_ERROR) == @sizeOf(c_int));
@@ -129,6 +143,10 @@ comptime {
     std.debug.assert(@backingInt(types.SYMCRYPT_ERROR.SYMCRYPT_HBS_PUBLIC_ROOT_MISMATCH) == 0x8015);
     std.debug.assert(@sizeOf(types.SYMCRYPT_UINT32_MAP) == 8);
     std.debug.assert(@alignOf(types.SYMCRYPT_HASH) == types.SYMCRYPT_ALIGN_VALUE);
+    std.debug.assert(@alignOf(types.SYMCRYPT_AES_EXPANDED_KEY) == types.SYMCRYPT_ALIGN_VALUE);
+    std.debug.assert(@offsetOf(types.SYMCRYPT_AES_EXPANDED_KEY, "lastEncRoundKey") == 29 * 16);
+    std.debug.assert(@offsetOf(types.SYMCRYPT_AES_EXPANDED_KEY, "lastDecRoundKey") == 29 * 16 + @sizeOf(usize));
+    std.debug.assert(@offsetOf(types.SYMCRYPT_AES_EXPANDED_KEY, "magic") == 29 * 16 + 2 * @sizeOf(usize));
 
     std.debug.assert(macros.MASK32_ZERO(0) == 0xffffffff);
     std.debug.assert(macros.MASK32_ZERO(1) == 0);

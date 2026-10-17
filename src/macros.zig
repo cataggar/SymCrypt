@@ -358,6 +358,85 @@ pub inline fn SymCryptLsbFirstToUint64(pbData: [*]const u8, puResult: [*]u64, cu
     }
 }
 
+// ==============================================================================================
+// CPU Feature Detection & Memory Manipulation Helpers
+// ==============================================================================================
+
+pub extern var g_SymCryptCpuFeaturesNotPresent: types.SYMCRYPT_CPU_FEATURES;
+pub extern fn SymCryptCpuFeaturesNeverPresent() callconv(types.SYMCRYPT_CALL) types.SYMCRYPT_CPU_FEATURES;
+
+pub inline fn CPU_FEATURES_PRESENT(x: types.SYMCRYPT_CPU_FEATURES) bool {
+    return ((x & SymCryptCpuFeaturesNeverPresent()) == 0) and ((x & g_SymCryptCpuFeaturesNotPresent) == 0);
+}
+pub const SYMCRYPT_CPU_FEATURES_PRESENT = CPU_FEATURES_PRESENT;
+
+pub extern fn SymCryptWipe(pbData: types.PVOID, cbData: types.SIZE_T) callconv(types.SYMCRYPT_CALL) void;
+pub extern fn SymCryptXorBytes(pbSrc1: types.PCBYTE, pbSrc2: types.PCBYTE, pbResult: types.PBYTE, cbBytes: types.SIZE_T) callconv(types.SYMCRYPT_CALL) void;
+pub extern fn SymCryptInjectError(pbData: types.PBYTE, cbData: types.SIZE_T) callconv(types.SYMCRYPT_CALL) void;
+
+pub extern fn SymCryptSaveXmm(pSaveData: types.PSYMCRYPT_EXTENDED_SAVE_DATA) callconv(types.SYMCRYPT_CALL) types.SYMCRYPT_ERROR;
+pub extern fn SymCryptRestoreXmm(pSaveData: types.PSYMCRYPT_EXTENDED_SAVE_DATA) callconv(types.SYMCRYPT_CALL) void;
+pub extern fn SymCryptSaveYmm(pSaveData: types.PSYMCRYPT_EXTENDED_SAVE_DATA) callconv(types.SYMCRYPT_CALL) types.SYMCRYPT_ERROR;
+pub extern fn SymCryptRestoreYmm(pSaveData: types.PSYMCRYPT_EXTENDED_SAVE_DATA) callconv(types.SYMCRYPT_CALL) void;
+pub extern fn SymCryptSaveZmm(pSaveData: types.PSYMCRYPT_EXTENDED_SAVE_DATA) callconv(types.SYMCRYPT_CALL) types.SYMCRYPT_ERROR;
+pub extern fn SymCryptRestoreZmm(pSaveData: types.PSYMCRYPT_EXTENDED_SAVE_DATA) callconv(types.SYMCRYPT_CALL) void;
+
+pub const SYMCRYPT_WIPE_FUNCTION_LIMIT: usize = if (types.CPU_AMD64 or types.CPU_ARM64) 64 else 32;
+
+pub inline fn SymCryptWipeKnownSize(pbData: types.PVOID, comptime cbDataInput: types.SIZE_T) void {
+    if (comptime (types.CPU_X86 or types.CPU_AMD64 or types.CPU_ARM or types.CPU_ARM64)) {
+        comptime var cbData = cbDataInput;
+        const pb: [*]volatile u8 = @ptrCast(pbData.?);
+        if (comptime (cbData > SYMCRYPT_WIPE_FUNCTION_LIMIT)) {
+            SymCryptWipe(pbData, cbData);
+        } else {
+            if (comptime ((cbData & 1) != 0)) {
+                cbData -= 1;
+                FORCE_WRITE8(pb + cbData, 0);
+            }
+            if (comptime ((cbData & 2) != 0)) {
+                cbData -= 2;
+                FORCE_WRITE16(pb + cbData, 0);
+            }
+            if (comptime ((cbData & 4) != 0)) {
+                cbData -= 4;
+                FORCE_WRITE32(pb + cbData, 0);
+            }
+            if (comptime ((cbData & 8) != 0)) {
+                cbData -= 8;
+                FORCE_WRITE64(pb + cbData, 0);
+            }
+            if (comptime ((cbData & 16) != 0)) {
+                cbData -= 16;
+                FORCE_WRITE64(pb + cbData, 0);
+                FORCE_WRITE64(pb + cbData + 8, 0);
+            }
+            if (comptime ((cbData & 32) != 0)) {
+                cbData -= 32;
+                FORCE_WRITE64(pb + cbData, 0);
+                FORCE_WRITE64(pb + cbData + 8, 0);
+                FORCE_WRITE64(pb + cbData + 16, 0);
+                FORCE_WRITE64(pb + cbData + 24, 0);
+            }
+            if (comptime (SYMCRYPT_WIPE_FUNCTION_LIMIT >= 64)) {
+                if (comptime ((cbData & 64) != 0)) {
+                    cbData -= 64;
+                    FORCE_WRITE64(pb + cbData, 0);
+                    FORCE_WRITE64(pb + cbData + 8, 0);
+                    FORCE_WRITE64(pb + cbData + 16, 0);
+                    FORCE_WRITE64(pb + cbData + 24, 0);
+                    FORCE_WRITE64(pb + cbData + 32, 0);
+                    FORCE_WRITE64(pb + cbData + 40, 0);
+                    FORCE_WRITE64(pb + cbData + 48, 0);
+                    FORCE_WRITE64(pb + cbData + 56, 0);
+                }
+            }
+        }
+    } else {
+        SymCryptWipe(pbData, cbDataInput);
+    }
+}
+
 pub inline fn SymCryptUint64ToMsbFirst(puData: [*]const u64, pbResult: [*]u8, cuData: usize) void {
     var i: usize = 0;
     while (i < cuData) : (i += 1) {
