@@ -111,6 +111,12 @@ pub const ec_dispatch = @import("ec_dispatch.zig");
 pub const ecurve = @import("ecurve.zig");
 pub const ecpoint = @import("ecpoint.zig");
 pub const eckey = @import("eckey.zig");
+pub const ec_short_weierstrass = @import("ec_short_weierstrass.zig");
+pub const ec_montgomery = @import("ec_montgomery.zig");
+pub const ec_twisted_edwards = @import("ec_twisted_edwards.zig");
+pub const ec_mul = @import("ec_mul.zig");
+pub const ec_dh = @import("ec_dh.zig");
+pub const ec_dsa = @import("ec_dsa.zig");
 
 comptime {
     _ = build_options;
@@ -215,6 +221,12 @@ comptime {
     _ = ecurve;
     _ = ecpoint;
     _ = eckey;
+    _ = ec_short_weierstrass;
+    _ = ec_montgomery;
+    _ = ec_twisted_edwards;
+    _ = ec_mul;
+    _ = ec_dh;
+    _ = ec_dsa;
 
     // Compile-time sanity checks on core types, masks, rotations, and magic constants.
     std.debug.assert(@sizeOf(types.SYMCRYPT_RSA_PARAMS) == 16);
