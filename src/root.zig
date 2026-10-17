@@ -52,6 +52,9 @@ pub const tlsprf = @import("tlsprf.zig");
 pub const ssh_kdf = @import("ssh_kdf.zig");
 pub const srtp_kdf = @import("srtp_kdf.zig");
 pub const sskdf = @import("sskdf.zig");
+pub const sha3 = @import("sha3.zig");
+pub const shake = @import("shake.zig");
+pub const kmac = @import("kmac.zig");
 
 comptime {
     _ = build_options;
@@ -97,6 +100,9 @@ comptime {
     _ = ssh_kdf;
     _ = srtp_kdf;
     _ = sskdf;
+    _ = sha3;
+    _ = shake;
+    _ = kmac;
 
     // Compile-time sanity checks on core types, masks, rotations, and magic constants.
     std.debug.assert(@sizeOf(types.SYMCRYPT_ERROR) == @sizeOf(c_int));
