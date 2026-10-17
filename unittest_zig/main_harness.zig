@@ -12,6 +12,7 @@ pub extern fn dprint(format: [*:0]const u8, ...) callconv(.c) void;
 pub extern fn printOutput(delayMilliSeconds: c_int) callconv(.c) void;
 extern fn scTestGenRandom(pbBuf: [*]u8, cbBuf: usize) callconv(.c) c_int;
 extern fn scTestSleepMs(ms: u32) callconv(.c) void;
+extern fn scTestIsAlgorithmPresent(name_ptr: [*]const u8, name_len: usize, isPrefix: u32) callconv(.c) u32;
 
 pub fn fillRandom(buf: []u8) error{RandomFailed}!void {
     if (buf.len == 0) return;
@@ -39,6 +40,12 @@ pub fn ziprint(comptime fmt: []const u8, args: anytype) void {
 pub fn zdprint(comptime fmt: []const u8, args: anytype) void {
     var buf: [4096]u8 = undefined;
     dprint("%s", fmtBufZ(&buf, fmt, args));
+}
+
+pub fn vprint(cond: bool, comptime fmt: []const u8, args: anytype) void {
+    if (cond) {
+        zprint(fmt, args);
+    }
 }
 
 pub fn fatal(comptime fmt: []const u8, args: anytype) noreturn {
@@ -88,6 +95,23 @@ pub fn check5(cond: bool, msg: [*:0]const u8, a: anytype, b: anytype, c: anytype
     }
 }
 
+pub fn isAlgorithmPresent(algName: [*]const u8, isPrefix: c_int) bool {
+    const cstr: [*:0]const u8 = @ptrCast(algName);
+    const slice = std.mem.span(cstr);
+    return scTestIsAlgorithmPresent(slice.ptr, slice.len, if (isPrefix != 0) 1 else 0) != 0;
+}
+
+const kat_mod = @import("kat.zig");
+
+pub const DataResource = struct {
+    name: []const u8,
+    pbData: [*]const u8,
+    cbData: usize,
+};
+
+pub fn findDataItem(name: []const u8) ?DataResource {
+    return kat_mod.findEmbeddedResource(name);
+}
 pub export var g_rc2EffectiveKeyLength: u32 = 0;
 pub export var g_modeCfbShiftParam: usize = 1;
 pub export var g_modifiedCpuFeatures: u32 = 0;
@@ -333,11 +357,6 @@ pub export fn scTestSetContainsPrefixAlg(str_ptr: [*]const u8, str_len: usize) c
 
 pub export fn scTestSetContainsPrefixImp(str_ptr: [*]const u8, str_len: usize) callconv(.c) u32 {
     return if (g_implementationsToTestZig.containsPrefix(str_ptr[0..str_len])) 1 else 0;
-}
-
-pub fn isAlgorithmPresent(name: []const u8, emptyAllowed: bool) bool {
-    _ = emptyAllowed;
-    return g_algorithmsToTestZig.containsPrefix(name);
 }
 
 pub fn printHex(data: []const u8) void {

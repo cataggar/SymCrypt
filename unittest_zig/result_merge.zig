@@ -31,6 +31,8 @@ const ResultMergeState = struct {
     }
 };
 
+pub const ResultMerge = anyopaque;
+
 pub export fn scTestResultMergeCreate() callconv(.c) ?*anyopaque {
     const state = std.heap.c_allocator.create(ResultMergeState) catch h.fatal("Out of memory in scTestResultMergeCreate", .{});
     state.* = .{};

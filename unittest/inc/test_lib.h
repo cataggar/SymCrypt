@@ -1589,8 +1589,10 @@ VOID
 testAesCtrDrbg();
 }
 
+extern "C" {
 VOID
 testArithmetic();
+}
 
 VOID
 testKem();
@@ -1598,8 +1600,10 @@ testKem();
 VOID
 testCompositeHelpers();
 
+extern "C" {
 VOID
 testEcEncoding();
+}
 
 VOID
 testHpke();
@@ -1615,6 +1619,7 @@ VOID
 testPaddingPkcs7();
 }
 
+extern "C" {
 VOID
 testEcc();
 
@@ -1629,6 +1634,7 @@ testDhAlgorithms();
 
 VOID
 testDsaAlgorithms();
+}
 
 VOID
 testPqDsa();
@@ -2176,8 +2182,10 @@ printXmmRegisters( PCSTR text );
 #define PERF_KEY_HPKE_P521_SHA512_AESGCM256           (210)
 #define PERF_KEY_HPKE_X25519_SHA256_AESGCM128         (211)
 
+extern "C" {
 PCBYTE
 getPerfTestModulus( UINT32 exKeySize );
+}
 
 //
 // Checked alloc definitions
@@ -2354,8 +2362,10 @@ const struct {
 
 #define NUM_OF_HIGH_BIT_RESTRICTION_ITERATIONS   (100)
 
+extern "C" {
 VOID
 testMontgomery(PSYMCRYPT_ECURVE  pCurve);
+}
 
 template<class Implementation>
 VOID
@@ -2380,18 +2390,18 @@ addRsaKeyGenPerfMsBignum( PrintTable &table );
 
 
 #define MAX_RSA_TESTKEYS    (50)
+#define MAX_TEST_DLGROUPS   (60)
+
+extern "C" {
 extern RSAKEY_TESTBLOB g_RsaTestKeyBlobs[ MAX_RSA_TESTKEYS ];
 extern UINT32 g_nRsaTestKeyBlobs;
 
-#define MAX_TEST_DLGROUPS   (60)
 extern DLGROUP_TESTBLOB g_DlGroup[ MAX_TEST_DLGROUPS ];
 extern UINT32 g_nDlgroups;
 extern UINT32 g_nDhNamedGroups;
 
-extern "C" {
 VOID
 fprintHex( FILE * f, PCBYTE pbData, SIZE_T cbData );
-}
 
 VOID rsaTestKeysGenerate();
 
@@ -2408,6 +2418,7 @@ PCDLGROUP_TESTBLOB
 dlgroupForSize( SIZE_T nBits, BOOLEAN forDiffieHellman );
 
 VOID generateDlGroups();
+}
 
 template<class Implementation>
 PSYMCRYPT_DLGROUP
