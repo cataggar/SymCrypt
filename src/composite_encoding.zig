@@ -21,19 +21,12 @@ const SYMCRYPT_NUMBER_FORMAT = types.SYMCRYPT_NUMBER_FORMAT;
 const SYMCRYPT_ECPOINT_FORMAT = types.SYMCRYPT_ECPOINT_FORMAT;
 const SYMCRYPT_CACHED_ECURVE_ID = types.SYMCRYPT_CACHED_ECURVE_ID;
 
-pub const SYMCRYPT_ECURVE = opaque {};
-pub const PCSYMCRYPT_ECURVE = *const SYMCRYPT_ECURVE;
+pub const SYMCRYPT_ECURVE = types.SYMCRYPT_ECURVE;
+pub const PCSYMCRYPT_ECURVE = types.PCSYMCRYPT_ECURVE;
 
-pub const SYMCRYPT_ECKEY = extern struct {
-    fAlgorithmInfo: UINT32 align(types.SYMCRYPT_ASYM_ALIGN_VALUE),
-    hasPrivateKey: BOOLEAN,
-    pCurve: PCSYMCRYPT_ECURVE,
-    poPublicKey: *anyopaque,
-    piPrivateKey: *anyopaque,
-    magic: SIZE_T,
-};
-pub const PSYMCRYPT_ECKEY = *SYMCRYPT_ECKEY;
-pub const PCSYMCRYPT_ECKEY = *const SYMCRYPT_ECKEY;
+pub const SYMCRYPT_ECKEY = types.SYMCRYPT_ECKEY;
+pub const PSYMCRYPT_ECKEY = types.PSYMCRYPT_ECKEY;
+pub const PCSYMCRYPT_ECKEY = types.PCSYMCRYPT_ECKEY;
 
 pub extern fn SymCryptGetCachedEcurve(curveId: SYMCRYPT_CACHED_ECURVE_ID) callconv(SYMCRYPT_CALL) ?PCSYMCRYPT_ECURVE;
 pub extern fn SymCryptEckeySizeofPrivateKey(pkEckey: PCSYMCRYPT_ECKEY) callconv(SYMCRYPT_CALL) UINT32;

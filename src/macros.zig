@@ -298,6 +298,10 @@ pub inline fn ASSERT(cond: bool) void {
     }
 }
 
+pub inline fn SYMCRYPT_ASSERT_ASYM_ALIGNED(p: anytype) void {
+    ASSERT((@intFromPtr(p) & (types.SYMCRYPT_ASYM_ALIGN_VALUE - 1)) == 0);
+}
+
 pub const SYMCRYPT_SET_MAGIC = SET_MAGIC;
 pub const SYMCRYPT_CHECK_MAGIC = CHECK_MAGIC;
 pub const SYMCRYPT_WIPE_MAGIC = WIPE_MAGIC;
