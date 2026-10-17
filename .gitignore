@@ -92,3 +92,8 @@ Makefile
 
 # Rust (possibly built standalone for benchmarking)
 SymCRust/target
+
+# Zig build outputs and cache
+.zig-cache/
+zig-out/
+
