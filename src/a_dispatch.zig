@@ -742,7 +742,7 @@ pub export fn SymCryptCreateTrialDivisionContext(nDigits: UINT32) callconv(SYMCR
 pub export fn SymCryptIntFindSmallDivisor(
     pContext: PCSYMCRYPT_TRIALDIVISION_CONTEXT,
     piSrc: PCSYMCRYPT_INT,
-    pbScratch: PBYTE,
+    pbScratch: ?PBYTE,
     cbScratch: SIZE_T,
 ) callconv(SYMCRYPT_CALL) UINT32 {
     return fdef_general.SymCryptFdefIntFindSmallDivisor(pContext, piSrc, pbScratch, cbScratch);

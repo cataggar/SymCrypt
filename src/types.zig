@@ -846,6 +846,14 @@ pub const SYMCRYPT_FLAG_MODULUS_PARITY_PUBLIC: u32 = 0x02;
 pub const SYMCRYPT_FLAG_MODULUS_ADDITIVE_ONLY: u32 = 0x04;
 pub const SYMCRYPT_FLAG_MODULUS_PRIME: u32 = 0x08;
 
+pub const SYMCRYPT_FLAG_GCD_INPUTS_NOT_BOTH_EVEN: u32 = 0x02;
+pub const SYMCRYPT_FLAG_GCD_PUBLIC: u32 = 0x04;
+
+pub const SYMCRYPT_FDEF_MAX_WINDOW_MODEXP: u32 = 6;
+pub const SYMCRYPT_MODMULTIEXP_MAX_NBASES: u32 = 8;
+pub const SYMCRYPT_MODMULTIEXP_MAX_NBITSEXP: u32 = SYMCRYPT_INT_MAX_BITS;
+pub const SYMCRYPT_RSAKEY_MAX_NUMOF_PUBEXPS: u32 = 1;
+
 pub const SYMCRYPT_MODULUS_FEATURE_MONTGOMERY: u32 = 1;
 pub const SYMCRYPT_MODULUS_FEATURE_NISTP384: u32 = 8;
 
@@ -983,6 +991,111 @@ pub inline fn SYMCRYPT_SCRATCH_BYTES_FOR_INT_MUL(nDigits: u32) u32 {
 pub inline fn SYMCRYPT_SCRATCH_BYTES_FOR_INT_DIVMOD(nSrcDigits: u32, nDivisorDigits: u32) u32 {
     _ = nDivisorDigits;
     return (nSrcDigits + 1) * SYMCRYPT_FDEF_DIGIT_SIZE;
+}
+
+pub inline fn SYMCRYPT_SCRATCH_BYTES_FOR_EXTENDED_GCD(nDigits: u32) u32 {
+    return 4 * SYMCRYPT_FDEF_SIZEOF_INT_FROM_DIGITS(nDigits) +
+        SYMCRYPT_FDEF_SIZEOF_INT_FROM_DIGITS(2 * nDigits) +
+        2 * SYMCRYPT_FDEF_SIZEOF_DIVISOR_FROM_DIGITS(nDigits) +
+        @max(
+            SYMCRYPT_SCRATCH_BYTES_FOR_INT_DIVMOD(2 * nDigits, nDigits),
+            @max(
+                SYMCRYPT_SCRATCH_BYTES_FOR_INT_MUL(2 * nDigits),
+                SYMCRYPT_SCRATCH_BYTES_FOR_INT_TO_DIVISOR(nDigits),
+            ),
+        );
+}
+
+pub inline fn SYMCRYPT_SCRATCH_BYTES_FOR_COMMON_MOD_OPERATIONS(nModDigits: u32) u32 {
+    return (2 * nModDigits * SYMCRYPT_FDEF_DIGIT_SIZE) +
+        SYMCRYPT_SCRATCH_BYTES_FOR_INT_DIVMOD(2 * nModDigits, nModDigits);
+}
+
+pub inline fn SYMCRYPT_SCRATCH_BYTES_FOR_CRT_GENERATION(nDigits: u32) u32 {
+    return 2 * SYMCRYPT_FDEF_SIZEOF_INT_FROM_DIGITS(nDigits) +
+        @max(
+            SYMCRYPT_SCRATCH_BYTES_FOR_EXTENDED_GCD(nDigits),
+            SYMCRYPT_SCRATCH_BYTES_FOR_COMMON_MOD_OPERATIONS(nDigits),
+        );
+}
+
+pub inline fn SYMCRYPT_SCRATCH_BYTES_FOR_CRT_SOLUTION(nDigits: u32) u32 {
+    return SYMCRYPT_FDEF_SIZEOF_INT_FROM_DIGITS(nDigits) +
+        SYMCRYPT_FDEF_SIZEOF_MODELEMENT_FROM_DIGITS(nDigits) +
+        SYMCRYPT_FDEF_SIZEOF_INT_FROM_DIGITS(2 * nDigits) +
+        @max(
+            SYMCRYPT_SCRATCH_BYTES_FOR_COMMON_MOD_OPERATIONS(nDigits),
+            SYMCRYPT_SCRATCH_BYTES_FOR_INT_MUL(2 * nDigits),
+        );
+}
+
+pub inline fn SYMCRYPT_SCRATCH_BYTES_FOR_INT_TO_MODULUS(nDigits: u32) u32 {
+    return @max(
+        SYMCRYPT_SCRATCH_BYTES_FOR_INT_TO_DIVISOR(nDigits),
+        (2 * nDigits + 1) * SYMCRYPT_FDEF_DIGIT_SIZE +
+            SYMCRYPT_SCRATCH_BYTES_FOR_INT_DIVMOD(2 * nDigits + 1, nDigits),
+    );
+}
+
+pub inline fn SYMCRYPT_SCRATCH_BYTES_FOR_MODINV(nModDigits: u32) u32 {
+    return 4 * SYMCRYPT_FDEF_SIZEOF_MODELEMENT_FROM_DIGITS(nModDigits) +
+        3 * SYMCRYPT_FDEF_SIZEOF_INT_FROM_DIGITS(nModDigits) +
+        SYMCRYPT_SCRATCH_BYTES_FOR_COMMON_MOD_OPERATIONS(nModDigits);
+}
+
+pub inline fn SYMCRYPT_SCRATCH_BYTES_FOR_MODEXP(nModDigits: u32) u32 {
+    return ((@as(u32, 1) << SYMCRYPT_FDEF_MAX_WINDOW_MODEXP) + 2) * SYMCRYPT_FDEF_SIZEOF_MODELEMENT_FROM_DIGITS(nModDigits) +
+        SYMCRYPT_SCRATCH_BYTES_FOR_COMMON_MOD_OPERATIONS(nModDigits);
+}
+
+pub inline fn SYMCRYPT_SCRATCH_BYTES_FOR_INT_IS_POTENTIAL_PRIME(nDigits: u32) u32 {
+    _ = nDigits;
+    return 0;
+}
+
+pub inline fn SYMCRYPT_SCRATCH_BYTES_FOR_INT_MILLER_RABIN(nDigits: u32) u32 {
+    return SYMCRYPT_FDEF_SIZEOF_MODULUS_FROM_DIGITS(nDigits) +
+        3 * SYMCRYPT_FDEF_SIZEOF_MODELEMENT_FROM_DIGITS(nDigits) +
+        SYMCRYPT_FDEF_SIZEOF_INT_FROM_DIGITS(nDigits) +
+        @max(
+            SYMCRYPT_SCRATCH_BYTES_FOR_INT_TO_MODULUS(nDigits),
+            @max(
+                SYMCRYPT_SCRATCH_BYTES_FOR_COMMON_MOD_OPERATIONS(nDigits),
+                SYMCRYPT_SCRATCH_BYTES_FOR_MODEXP(nDigits),
+            ),
+        );
+}
+
+pub inline fn SYMCRYPT_SCRATCH_BYTES_FOR_INT_IS_PRIME(nDigits: u32) u32 {
+    return @max(
+        SYMCRYPT_SCRATCH_BYTES_FOR_INT_IS_POTENTIAL_PRIME(nDigits),
+        SYMCRYPT_SCRATCH_BYTES_FOR_INT_MILLER_RABIN(nDigits),
+    );
+}
+
+pub inline fn SYMCRYPT_SCRATCH_BYTES_FOR_INT_PRIME_GEN(nDigits: u32) u32 {
+    return SYMCRYPT_RSAKEY_MAX_NUMOF_PUBEXPS * SYMCRYPT_FDEF_SIZEOF_DIVISOR_FROM_DIGITS(1) +
+        SYMCRYPT_FDEF_SIZEOF_INT_FROM_DIGITS(1) +
+        @max(
+            SYMCRYPT_SCRATCH_BYTES_FOR_INT_TO_DIVISOR(1),
+            @max(
+                SYMCRYPT_SCRATCH_BYTES_FOR_INT_DIVMOD(nDigits, 1),
+                @max(
+                    SYMCRYPT_FDEF_SIZEOF_INT_FROM_DIGITS(nDigits),
+                    @max(
+                        SYMCRYPT_SCRATCH_BYTES_FOR_INT_IS_POTENTIAL_PRIME(nDigits),
+                        SYMCRYPT_SCRATCH_BYTES_FOR_INT_MILLER_RABIN(nDigits),
+                    ),
+                ),
+            ),
+        );
+}
+
+pub inline fn SYMCRYPT_SCRATCH_BYTES_FOR_MODMULTIEXP(nModDigits: u32, nBases: u32, nBitsExp: u32) u32 {
+    const align_val: u32 = SYMCRYPT_ASYM_ALIGN_VALUE;
+    return SYMCRYPT_SCRATCH_BYTES_FOR_COMMON_MOD_OPERATIONS(nModDigits) +
+        (nBases * (@as(u32, 1) << SYMCRYPT_FDEF_MAX_WINDOW_MODEXP) + 4) * SYMCRYPT_FDEF_SIZEOF_MODELEMENT_FROM_DIGITS(nModDigits) +
+        (((nBases * nBitsExp * @sizeOf(UINT32)) + align_val - 1) & ~(align_val - 1));
 }
 
 pub const SYMCRYPT_TRIALDIVISION_PRIME = extern struct {

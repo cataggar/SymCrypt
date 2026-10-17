@@ -12,9 +12,9 @@ const UINT32 = types.UINT32;
 const PUINT32 = types.PUINT32;
 const SIZE_T = types.SIZE_T;
 
-pub const SYMCRYPT_INT = opaque {};
-pub const PSYMCRYPT_INT = *SYMCRYPT_INT;
-pub const PCSYMCRYPT_INT = *const SYMCRYPT_INT;
+pub const SYMCRYPT_INT = types.SYMCRYPT_INT;
+pub const PSYMCRYPT_INT = types.PSYMCRYPT_INT;
+pub const PCSYMCRYPT_INT = types.PCSYMCRYPT_INT;
 
 extern fn SymCryptIntGetValueLsbits32(piSrc: PCSYMCRYPT_INT) callconv(types.SYMCRYPT_CALL) UINT32;
 extern fn SymCryptIntSubUint32(piSrc1: PCSYMCRYPT_INT, u32Src2: UINT32, piDst: PSYMCRYPT_INT) callconv(types.SYMCRYPT_CALL) UINT32;
