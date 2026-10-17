@@ -40,6 +40,11 @@ pub const md2 = @import("md2.zig");
 pub const md4 = @import("md4.zig");
 pub const md5 = @import("md5.zig");
 pub const sha1 = @import("sha1.zig");
+pub const libmain = @import("libmain.zig");
+pub const cpuid = @import("cpuid.zig");
+pub const env = @import("env.zig");
+pub const rdrand = @import("rdrand.zig");
+pub const rdseed = @import("rdseed.zig");
 
 comptime {
     _ = build_options;
@@ -73,6 +78,11 @@ comptime {
     _ = md4;
     _ = md5;
     _ = sha1;
+    _ = libmain;
+    _ = cpuid;
+    _ = env;
+    _ = rdrand;
+    _ = rdseed;
 
     // Compile-time sanity checks on core types, masks, rotations, and magic constants.
     std.debug.assert(@sizeOf(types.SYMCRYPT_ERROR) == @sizeOf(c_int));

@@ -21,9 +21,6 @@ const common_c_sources: []const []const u8 = &.{
     "composite_encoding.c",
     "composite_mldsa.c",
     "composite_mlkem.c",
-    "cpuid_notry.c",
-    "cpuid_um.c",
-    "cpuid.c",
     "crt.c",
     "dh.c",
     "dl_internal_groups.c",
@@ -53,7 +50,6 @@ const common_c_sources: []const []const u8 = &.{
     "hkdf_selftest.c",
     "hkdf.c",
     "kmac.c",
-    "libmain.c",
     "lms.c",
     "mldsa.c",
     "mldsa_primitives.c",
@@ -65,8 +61,6 @@ const common_c_sources: []const []const u8 = &.{
     "pbkdf2_hmacsha256.c",
     "pbkdf2.c",
     "primes.c",
-    "rdrand.c",
-    "rdseed.c",
     "rsa_enc.c",
     "rsa_padding.c",
     "rsakey.c",
@@ -253,26 +247,11 @@ pub fn build(b: *std.Build) void {
     configureModuleCommon(b, common_mod, generated_headers, target, optimize, effective_use_asm, fips_build);
     addSymCryptCommonSources(b, common_mod, target, optimize, effective_use_asm);
 
-    if (os_tag == .windows) {
-        common_mod.addCSourceFile(.{
-            .file = b.path("lib/env_windowsUserModeWin8_1.c"),
-            .flags = getCFlags(b, target, optimize, &.{}) catch @panic("OOM"),
-        });
-    } else {
-        common_mod.addCSourceFile(.{
-            .file = b.path("lib/env_posixUserMode.c"),
-            .flags = getCFlags(b, target, optimize, &.{}) catch @panic("OOM"),
-        });
-    }
-    common_mod.addCSourceFile(.{
-        .file = b.path("lib/env_generic.c"),
-        .flags = getCFlags(b, target, optimize, &.{}) catch @panic("OOM"),
-    });
-
     const symcrypt_lib = b.addLibrary(.{
         .name = "symcrypt",
         .linkage = .static,
         .root_module = common_mod,
+        .use_llvm = true,
     });
     b.installArtifact(symcrypt_lib);
 
