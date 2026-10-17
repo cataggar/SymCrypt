@@ -7,7 +7,6 @@ const symcrypt_version = std.SemanticVersion{
 };
 
 const common_c_sources: []const []const u8 = &.{
-    "3des.c",
     "a_dispatch.c",
     "aes-asm.c",
     "aes-c.c",
@@ -29,8 +28,6 @@ const common_c_sources: []const []const u8 = &.{
     "cpuid_um.c",
     "cpuid.c",
     "crt.c",
-    "DesTables.c",
-    "desx.c",
     "dh.c",
     "dl_internal_groups.c",
     "dlgroup.c",
@@ -89,7 +86,6 @@ const common_c_sources: []const []const u8 = &.{
     "pbkdf2_hmacsha256.c",
     "pbkdf2.c",
     "primes.c",
-    "rc2.c",
     "rdrand.c",
     "rdseed.c",
     "rsa_enc.c",
