@@ -34,7 +34,7 @@ extern fn SymCryptStoreLsbFirstUint64(uSrc: u64, pbDst: [*]u8, cbDst: usize) cal
 extern fn SymCryptUint64Gcd(a: u64, b: u64, flags: u32) callconv(.c) u64;
 extern fn SymCryptWipe(pbData: [*]u8, cbData: usize) callconv(.c) void;
 
-fn hasDispatchSym(name: [*:0]const u8) bool {
+pub fn hasDispatchSym(name: [*:0]const u8) bool {
     if (h.g_useDynamicFunctionsInTestCall != 0) {
         return getDynamicSymbolPointerFromString(h.g_dynamicSymCryptModuleHandle, name, SCTEST_DYNSYM_FUNCTION_PTR) != null;
     }

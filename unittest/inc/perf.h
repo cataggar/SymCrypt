@@ -127,7 +127,11 @@ typedef VOID (*PerfCleanFn)( PBYTE buf1, PBYTE buf2, PBYTE buf3 );
 
 #define PERF_BUFFER_SIZE    (1<<18)
 
+extern "C" {
 VOID measurePerf();
 
 extern PSTR g_perfUnits;
+extern double g_perfScaleFactor;
+extern double g_perfMeasurementOverhead;
+}
 

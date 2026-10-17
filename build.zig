@@ -12,21 +12,6 @@ const x86_specialized_c_sources: []const []const u8 = &.{};
 
 const unittest_cpp_sources: []const []const u8 = &.{
     "cpp_bridge.cpp",
-    "perf.cpp",
-    "perfPrint.cpp",
-    "testAccessors.cpp",
-    "testCompositeHelpers.cpp",
-    "testHbs.cpp",
-    "testKem.cpp",
-    "testHpke.cpp",
-    "testMultiThread.cpp",
-    "testPqDsa.cpp",
-    "testScsTable.cpp",
-    "testScsTools.cpp",
-    "testSelftest.cpp",
-    "testServiceIndicator.cpp",
-    "testStatusIndicator.cpp",
-    "testWipe.cpp",
 };
 
 const kat_file_names: []const []const u8 = &.{

@@ -1051,6 +1051,95 @@ katParseInteger( KAT_ITEM & item, LPCSTR name )
 }
 
 //
+// perfPrint C++ variadic and String wrappers -> Zig perf.zig
+//
+extern "C" {
+void scTestAddOutput( const char * str, size_t len );
+void scTestAddDirectOutput( const char * str, size_t len );
+size_t scTestFormatNumber( double v, char * outBuf, size_t outBufCap );
+}
+
+VOID
+print( String s )
+{
+    scTestAddOutput( s.data(), s.size() );
+}
+
+String
+formatNumber( double v )
+{
+    char buf[100];
+    size_t len = scTestFormatNumber( v, buf, sizeof(buf) );
+    return String( buf, len );
+}
+
+extern "C" {
+
+VOID
+print( const char * format, ... )
+{
+    char buf[8192];
+    va_list vl;
+    va_start( vl, format );
+    int res = vsnprintf( buf, sizeof(buf), format, vl );
+    va_end( vl );
+    CHECK( res >= 0, "WHOA!!!" );
+    size_t len = (size_t)res < sizeof(buf) ? (size_t)res : sizeof(buf) - 1;
+    scTestAddOutput( buf, len );
+}
+
+VOID
+iprint( const char * format, ... )
+{
+    char buf[8192];
+    va_list vl;
+    va_start( vl, format );
+    int res = vsnprintf( buf, sizeof(buf), format, vl );
+    va_end( vl );
+    CHECK( res >= 0, "WHOA!!!" );
+    size_t len = (size_t)res < sizeof(buf) ? (size_t)res : sizeof(buf) - 1;
+    scTestAddDirectOutput( buf, len );
+}
+
+VOID
+dprint( const char * format, ... )
+{
+    UNREFERENCED_PARAMETER( format );
+}
+
+VOID
+vprint( BOOL bPrint, const char * format, ... )
+{
+    if( bPrint )
+    {
+        char buf[8192];
+        va_list vl;
+        va_start( vl, format );
+        int res = vsnprintf( buf, sizeof(buf), format, vl );
+        va_end( vl );
+        CHECK( res >= 0, "WHOA!!!" );
+        size_t len = (size_t)res < sizeof(buf) ? (size_t)res : sizeof(buf) - 1;
+        scTestAddDirectOutput( buf, len );
+    }
+}
+
+} // extern "C"
+
+#include "sc_imp_shims.h"
+
+#define IMP_Name ScStatic
+#define IMP_PrettyNameStr "SymCryptStatic"
+#include "perf_sc_imp_pattern.cpp"
+#undef IMP_PrettyNameStr
+#undef IMP_Name
+
+#define IMP_Name ScDynamic
+#define IMP_PrettyNameStr "SymCryptDynamic"
+#include "perf_sc_imp_pattern.cpp"
+#undef IMP_PrettyNameStr
+#undef IMP_Name
+
+//
 // Main harness C++ helper callbacks
 //
 extern "C" {
@@ -1973,5 +2062,607 @@ NTSTATUS scTestMacImpMac( void * pImp, PCBYTE pbKey, SIZE_T cbKey, PCBYTE pbData
 
 // KdfImplementation wrappers
 void scTestKdfImpDerive( void * pImp, PCBYTE pbKey, SIZE_T cbKey, PKDF_ARGUMENTS pArgs, PBYTE pbDst, SIZE_T cbDst ) { static_cast<KdfImplementation *>( pImp )->derive( pbKey, cbKey, pArgs, pbDst, cbDst ); }
+
+// HbsMultiImp bridge
+struct ScTestHbsMultiImp
+{
+    std::vector<HbsImplementation *> m_imps;
+    std::vector<HbsImplementation *> m_comps;
+    LONGLONG m_nErrorKatFailure = 0;
+
+    explicit ScTestHbsMultiImp( const char * algName )
+    {
+        getAllImplementations<HbsImplementation>( algName, &m_imps );
+    }
+
+    ~ScTestHbsMultiImp()
+    {
+        for( std::vector<HbsImplementation *>::iterator i = m_imps.begin(); i != m_imps.end(); ++i )
+        {
+            (*i)->m_nErrorKatFailure += m_nErrorKatFailure;
+        }
+    }
+};
+
+void *
+scTestHbsMultiImpCreate( const char * algName )
+{
+    return new ScTestHbsMultiImp( algName );
+}
+
+void
+scTestHbsMultiImpDestroy( void * pMultiImp )
+{
+    delete static_cast<ScTestHbsMultiImp *>( pMultiImp );
+}
+
+size_t
+scTestHbsMultiImpGetCount( void * pMultiImp )
+{
+    return static_cast<ScTestHbsMultiImp *>( pMultiImp )->m_imps.size();
+}
+
+int32_t
+scTestHbsImpSetKey(
+    void * pImp,
+    uint32_t algId,
+    uint32_t otsAlgId,
+    int fMultitree,
+    PCBYTE pbSrc,
+    size_t cbSrc,
+    int fVerifyRoot )
+{
+    ScTestHbsMultiImp * pMulti = static_cast<ScTestHbsMultiImp *>( pImp );
+    pMulti->m_comps.clear();
+    for( std::vector<HbsImplementation *>::const_iterator i = pMulti->m_imps.begin(); i != pMulti->m_imps.end(); ++i )
+    {
+        if( (*i)->setKey( algId, otsAlgId, (BOOL)fMultitree, pbSrc, cbSrc, (BOOL)fVerifyRoot ) == STATUS_SUCCESS )
+        {
+            pMulti->m_comps.push_back( *i );
+        }
+    }
+    return pMulti->m_comps.empty() ? STATUS_NOT_SUPPORTED : STATUS_SUCCESS;
+}
+
+int32_t
+scTestHbsImpVerify(
+    void * pImp,
+    PCBYTE pbMsg,
+    size_t cbMsg,
+    uint32_t flags,
+    PCBYTE pbSig,
+    size_t cbSig )
+{
+    UNREFERENCED_PARAMETER( flags );
+    ScTestHbsMultiImp * pMulti = static_cast<ScTestHbsMultiImp *>( pImp );
+    NTSTATUS status = STATUS_SUCCESS;
+    ResultMerge res;
+    BYTE b[4];
+
+    for( std::vector<HbsImplementation *>::const_iterator i = pMulti->m_comps.begin(); i != pMulti->m_comps.end(); ++i )
+    {
+        status = (*i)->verify( pbMsg, cbMsg, pbSig, cbSig );
+        SYMCRYPT_STORE_MSBFIRST32( b, status );
+        res.addResult( (*i), b, 4 );
+    }
+
+    res.getResult( b, 4 );
+    status = SYMCRYPT_LOAD_MSBFIRST32( b );
+    return status;
+}
+
+int32_t
+scTestHbsImpSign(
+    void * pImp,
+    PCBYTE pbMsg,
+    size_t cbMsg,
+    uint32_t flags,
+    PBYTE pbSig,
+    size_t cbSig )
+{
+    UNREFERENCED_PARAMETER( flags );
+    ScTestHbsMultiImp * pMulti = static_cast<ScTestHbsMultiImp *>( pImp );
+    NTSTATUS status = STATUS_SUCCESS;
+    ResultMerge res;
+    PBYTE pbBuffer = new BYTE[cbSig];
+    CHECK( pbBuffer != nullptr, "Memory allocation error" );
+
+    for( std::vector<HbsImplementation *>::const_iterator i = pMulti->m_comps.begin(); i != pMulti->m_comps.end(); ++i )
+    {
+        SymCryptWipe( pbBuffer, cbSig );
+        if( (*i)->sign( pbMsg, cbMsg, pbBuffer, cbSig ) != STATUS_SUCCESS )
+        {
+            CHECK( FALSE, "Signature generation error" );
+            continue;
+        }
+        res.addResult( (*i), pbBuffer, cbSig );
+    }
+
+    res.getResult( pbSig, cbSig );
+    delete[] pbBuffer;
+    return status;
+}
+
+// KemMultiImp bridge
+struct ScTestKemMultiImp
+{
+    std::vector<KemImplementation *> m_imps;
+    LONGLONG m_nErrorKatFailure = 0;
+
+    explicit ScTestKemMultiImp( const char * algName )
+    {
+        getAllImplementations<KemImplementation>( algName, &m_imps );
+    }
+
+    ~ScTestKemMultiImp()
+    {
+        for( std::vector<KemImplementation *>::iterator i = m_imps.begin(); i != m_imps.end(); ++i )
+        {
+            (*i)->m_nErrorKatFailure += m_nErrorKatFailure;
+        }
+    }
+};
+
+void *
+scTestKemMultiImpCreate( const char * algName )
+{
+    return new ScTestKemMultiImp( algName );
+}
+
+void
+scTestKemMultiImpDestroy( void * pMultiImp )
+{
+    delete static_cast<ScTestKemMultiImp *>( pMultiImp );
+}
+
+size_t
+scTestKemMultiImpGetCount( void * pMultiImp )
+{
+    return static_cast<ScTestKemMultiImp *>( pMultiImp )->m_imps.size();
+}
+
+void *
+scTestKemMultiImpGetImp( void * pMultiImp, size_t idx )
+{
+    return static_cast<ScTestKemMultiImp *>( pMultiImp )->m_imps[idx];
+}
+
+const char *
+scTestKemMultiImpGetImpName( void * pMultiImp, size_t idx )
+{
+    return static_cast<ScTestKemMultiImp *>( pMultiImp )->m_imps[idx]->m_implementationName.c_str();
+}
+
+void
+scTestKemMultiImpAddKatError( void * pMultiImp, int64_t nErrorKatFailure )
+{
+    static_cast<ScTestKemMultiImp *>( pMultiImp )->m_nErrorKatFailure += nErrorKatFailure;
+}
+
+int32_t
+scTestKemImpSetKeyFromTestBlob( void * pImp, PCBYTE pcbTestKeyBlob, size_t cbTestKeyBlob, int canDecapsulate )
+{
+    return static_cast<KemImplementation *>( pImp )->setKeyFromTestBlob( pcbTestKeyBlob, cbTestKeyBlob, (BOOL)canDecapsulate );
+}
+
+int32_t
+scTestKemImpGetBlobFromKey( void * pImp, uint32_t blobType, PBYTE pbBlob, size_t cbBlob )
+{
+    return static_cast<KemImplementation *>( pImp )->getBlobFromKey( blobType, pbBlob, cbBlob );
+}
+
+int32_t
+scTestKemImpEncapsulate( void * pImp, PBYTE pbAgreedSecret, size_t cbAgreedSecret, PBYTE pbCiphertext, size_t cbCiphertext )
+{
+    return static_cast<KemImplementation *>( pImp )->encapsulate( pbAgreedSecret, cbAgreedSecret, pbCiphertext, cbCiphertext );
+}
+
+int32_t
+scTestKemImpEncapsulateEx( void * pImp, PCBYTE pbRandom, size_t cbRandom, PBYTE pbAgreedSecret, size_t cbAgreedSecret, PBYTE pbCiphertext, size_t cbCiphertext )
+{
+    return static_cast<KemImplementation *>( pImp )->encapsulateEx( pbRandom, cbRandom, pbAgreedSecret, cbAgreedSecret, pbCiphertext, cbCiphertext );
+}
+
+int32_t
+scTestKemImpDecapsulate( void * pImp, PCBYTE pbCiphertext, size_t cbCiphertext, PBYTE pbAgreedSecret, size_t cbAgreedSecret )
+{
+    return static_cast<KemImplementation *>( pImp )->decapsulate( pbCiphertext, cbCiphertext, pbAgreedSecret, cbAgreedSecret );
+}
+
+// PqDsaImplementation wrappers
+size_t
+scTestPqDsaCount( const char * algName )
+{
+    std::vector<PqDsaImplementation *> imps;
+    getAllImplementations<PqDsaImplementation>( algName, &imps );
+    return imps.size();
+}
+
+void *
+scTestPqDsaCreate( const char * algName, size_t index )
+{
+    std::vector<PqDsaImplementation *> imps;
+    getAllImplementations<PqDsaImplementation>( algName, &imps );
+    return index < imps.size() ? imps[index] : nullptr;
+}
+
+void
+scTestPqDsaFree( void * handle )
+{
+    UNREFERENCED_PARAMETER( handle );
+}
+
+int32_t
+scTestPqDsaSetKey( void * handle, PCPQDSAKEY_TESTBLOB pcKeyBlob )
+{
+    return static_cast<PqDsaImplementation *>( handle )->setKey( pcKeyBlob );
+}
+
+int32_t
+scTestPqDsaGetBlobFromKey( void * handle, uint32_t keyFormat, PBYTE pbBlob, size_t cbBlob )
+{
+    return static_cast<PqDsaImplementation *>( handle )->getBlobFromKey( keyFormat, pbBlob, cbBlob );
+}
+
+int32_t
+scTestPqDsaSign( void * handle, PCBYTE pbMessage, size_t cbMessage, PCBYTE pbContext, size_t cbContext, PBYTE pbSignature, size_t cbSignature, size_t * pcbResult )
+{
+    return static_cast<PqDsaImplementation *>( handle )->sign( pbMessage, cbMessage, pbContext, cbContext, pbSignature, cbSignature, pcbResult );
+}
+
+int32_t
+scTestPqDsaSignExternalMu( void * handle, PCBYTE pbMu, size_t cbMu, PBYTE pbSignature, size_t cbSignature )
+{
+    return static_cast<PqDsaImplementation *>( handle )->signExternalMu( pbMu, cbMu, pbSignature, cbSignature );
+}
+
+int32_t
+scTestPqDsaSignHash( void * handle, uint32_t hashId, PCBYTE pbHash, size_t cbHash, PCBYTE pbContext, size_t cbContext, PBYTE pbSignature, size_t cbSignature, size_t * pcbResult )
+{
+    return static_cast<PqDsaImplementation *>( handle )->signHash( (SYMCRYPT_PQDSA_HASH_ID)hashId, pbHash, cbHash, pbContext, cbContext, pbSignature, cbSignature, pcbResult );
+}
+
+int32_t
+scTestPqDsaSignEx( void * handle, uint32_t hashId, PCBYTE pbInput, size_t cbInput, PCBYTE pbContext, size_t cbContext, PCBYTE pbRandom, size_t cbRandom, uint32_t flags, PBYTE pbSignature, size_t cbSignature )
+{
+    return static_cast<PqDsaImplementation *>( handle )->signEx( (SYMCRYPT_PQDSA_HASH_ID)hashId, pbInput, cbInput, pbContext, cbContext, pbRandom, cbRandom, flags, pbSignature, cbSignature );
+}
+
+int32_t
+scTestPqDsaVerify( void * handle, PCBYTE pbMessage, size_t cbMessage, PCBYTE pbContext, size_t cbContext, PCBYTE pbSignature, size_t cbSignature )
+{
+    return static_cast<PqDsaImplementation *>( handle )->verify( pbMessage, cbMessage, pbContext, cbContext, pbSignature, cbSignature );
+}
+
+int32_t
+scTestPqDsaVerifyExternalMu( void * handle, PCBYTE pbMu, size_t cbMu, PCBYTE pbSignature, size_t cbSignature )
+{
+    return static_cast<PqDsaImplementation *>( handle )->verifyExternalMu( pbMu, cbMu, pbSignature, cbSignature );
+}
+
+int32_t
+scTestPqDsaVerifyHash( void * handle, uint32_t hashId, PCBYTE pbHash, size_t cbHash, PCBYTE pbContext, size_t cbContext, PCBYTE pbSignature, size_t cbSignature )
+{
+    return static_cast<PqDsaImplementation *>( handle )->verifyHash( (SYMCRYPT_PQDSA_HASH_ID)hashId, pbHash, cbHash, pbContext, cbContext, pbSignature, cbSignature );
+}
+
+// HpkeImplementation wrappers
+size_t
+scTestHpkeCount( const char * algName )
+{
+    std::vector<HpkeImplementation *> imps;
+    getAllImplementations<HpkeImplementation>( algName, &imps );
+    return imps.size();
+}
+
+void *
+scTestHpkeCreate( const char * algName, size_t index )
+{
+    std::vector<HpkeImplementation *> imps;
+    getAllImplementations<HpkeImplementation>( algName, &imps );
+    return index < imps.size() ? imps[index] : nullptr;
+}
+
+void
+scTestHpkeFree( void * handle )
+{
+    UNREFERENCED_PARAMETER( handle );
+}
+
+const char *
+scTestHpkeGetLastError( void * handle )
+{
+    return static_cast<HpkeImplementation *>( handle )->getLastError().c_str();
+}
+
+int32_t
+scTestHpkeSetKey( void * handle, SYMCRYPT_HPKE_CIPHERSUITE ciphersuite, uint32_t format, PCBYTE pbKey, size_t cbKey )
+{
+    return static_cast<HpkeImplementation *>( handle )->setKey( ciphersuite, format, pbKey, cbKey );
+}
+
+int32_t
+scTestHpkeGetKey( void * handle, uint32_t format, PBYTE pbKey, size_t cbKey )
+{
+    return static_cast<HpkeImplementation *>( handle )->getKey( format, pbKey, cbKey );
+}
+
+int32_t
+scTestHpkeDeriveKeyPair( void * handle, SYMCRYPT_HPKE_CIPHERSUITE ciphersuite, PCBYTE pbIkm, size_t cbIkm )
+{
+    return static_cast<HpkeImplementation *>( handle )->deriveKeyPair( ciphersuite, pbIkm, cbIkm );
+}
+
+int32_t
+scTestHpkeSealSingleShot(
+    void * handle,
+    PCBYTE pbInfo, size_t cbInfo,
+    PCBYTE pbPsk, size_t cbPsk,
+    PCBYTE pbPskId, size_t cbPskId,
+    PCBYTE pbAad, size_t cbAad,
+    PCBYTE pbPlaintext, size_t cbPlaintext,
+    PBYTE pbEnc, size_t cbEnc,
+    PBYTE pbCiphertext, size_t cbCiphertext )
+{
+    return static_cast<HpkeImplementation *>( handle )->sealSingleShot(
+        pbInfo, cbInfo, pbPsk, cbPsk, pbPskId, cbPskId, pbAad, cbAad,
+        pbPlaintext, cbPlaintext, pbEnc, cbEnc, pbCiphertext, cbCiphertext );
+}
+
+int32_t
+scTestHpkeOpenSingleShot(
+    void * handle,
+    PCBYTE pbEnc, size_t cbEnc,
+    PCBYTE pbInfo, size_t cbInfo,
+    PCBYTE pbPsk, size_t cbPsk,
+    PCBYTE pbPskId, size_t cbPskId,
+    PCBYTE pbAad, size_t cbAad,
+    PCBYTE pbCiphertext, size_t cbCiphertext,
+    PBYTE pbPlaintext, size_t cbPlaintext )
+{
+    return static_cast<HpkeImplementation *>( handle )->openSingleShot(
+        pbEnc, cbEnc, pbInfo, cbInfo, pbPsk, cbPsk, pbPskId, cbPskId,
+        pbAad, cbAad, pbCiphertext, cbCiphertext, pbPlaintext, cbPlaintext );
+}
+
+int32_t
+scTestHpkeSecretExportSingleShot(
+    void * handle,
+    PCBYTE pbEnc, size_t cbEnc,
+    PCBYTE pbInfo, size_t cbInfo,
+    PCBYTE pbPsk, size_t cbPsk,
+    PCBYTE pbPskId, size_t cbPskId,
+    PCBYTE pbExporterContext, size_t cbExporterContext,
+    PBYTE pbExportedValue, uint16_t cbExportedValue )
+{
+    return static_cast<HpkeImplementation *>( handle )->secretExportSingleShot(
+        pbEnc, cbEnc, pbInfo, cbInfo, pbPsk, cbPsk, pbPskId, cbPskId,
+        pbExporterContext, cbExporterContext, pbExportedValue, cbExportedValue );
+}
+
+int32_t
+scTestHpkeSetupSender(
+    void * handle,
+    PCBYTE pbInfo, size_t cbInfo,
+    PCBYTE pbPsk, size_t cbPsk,
+    PCBYTE pbPskId, size_t cbPskId,
+    PBYTE pbEnc, size_t cbEnc )
+{
+    return static_cast<HpkeImplementation *>( handle )->setupSender(
+        pbInfo, cbInfo, pbPsk, cbPsk, pbPskId, cbPskId, pbEnc, cbEnc );
+}
+
+int32_t
+scTestHpkeSetupSenderDeterministic(
+    void * handle,
+    PCBYTE pbRandom, size_t cbRandom,
+    PCBYTE pbInfo, size_t cbInfo,
+    PCBYTE pbPsk, size_t cbPsk,
+    PCBYTE pbPskId, size_t cbPskId,
+    PBYTE pbEnc, size_t cbEnc )
+{
+    return static_cast<HpkeImplementation *>( handle )->setupSenderDeterministic(
+        pbRandom, cbRandom, pbInfo, cbInfo, pbPsk, cbPsk, pbPskId, cbPskId, pbEnc, cbEnc );
+}
+
+int32_t
+scTestHpkeSetupRecipient(
+    void * handle,
+    PCBYTE pbEnc, size_t cbEnc,
+    PCBYTE pbInfo, size_t cbInfo,
+    PCBYTE pbPsk, size_t cbPsk,
+    PCBYTE pbPskId, size_t cbPskId )
+{
+    return static_cast<HpkeImplementation *>( handle )->setupRecipient(
+        pbEnc, cbEnc, pbInfo, cbInfo, pbPsk, cbPsk, pbPskId, cbPskId );
+}
+
+int32_t
+scTestHpkeSeal(
+    void * handle,
+    PCBYTE pbAuthData, size_t cbAuthData,
+    PCBYTE pbSrc, size_t cbSrc,
+    PBYTE pbDst, size_t cbDst,
+    uint64_t * pu64SeqNumber )
+{
+    return static_cast<HpkeImplementation *>( handle )->seal(
+        pbAuthData, cbAuthData, pbSrc, cbSrc, pbDst, cbDst, pu64SeqNumber );
+}
+
+int32_t
+scTestHpkeOpen(
+    void * handle,
+    PCBYTE pbAuthData, size_t cbAuthData,
+    PCBYTE pbSrc, size_t cbSrc,
+    PBYTE pbDst, size_t cbDst )
+{
+    return static_cast<HpkeImplementation *>( handle )->open(
+        pbAuthData, cbAuthData, pbSrc, cbSrc, pbDst, cbDst );
+}
+
+int32_t
+scTestHpkeOpenUnordered(
+    void * handle,
+    uint64_t u64SeqNumber,
+    PCBYTE pbAuthData, size_t cbAuthData,
+    PCBYTE pbSrc, size_t cbSrc,
+    PBYTE pbDst, size_t cbDst )
+{
+    return static_cast<HpkeImplementation *>( handle )->openUnordered(
+        u64SeqNumber, pbAuthData, cbAuthData, pbSrc, cbSrc, pbDst, cbDst );
+}
+
+int32_t
+scTestHpkeSecretExportSender(
+    void * handle,
+    PCBYTE pbExporterContext, size_t cbExporterContext,
+    PBYTE pbResult, uint16_t cbResult )
+{
+    return static_cast<HpkeImplementation *>( handle )->secretExportSender(
+        pbExporterContext, cbExporterContext, pbResult, cbResult );
+}
+
+int32_t
+scTestHpkeSecretExportRecipient(
+    void * handle,
+    PCBYTE pbExporterContext, size_t cbExporterContext,
+    PBYTE pbResult, uint16_t cbResult )
+{
+    return static_cast<HpkeImplementation *>( handle )->secretExportRecipient(
+        pbExporterContext, cbExporterContext, pbResult, cbResult );
+}
+
+size_t
+scTestHpkeEncSize( void * handle )
+{
+    return static_cast<HpkeImplementation *>( handle )->encSize();
+}
+
+// Perf infrastructure C++ bridge helpers
+uint64_t
+scTestGetPerfClock()
+{
+    return GET_PERF_CLOCK();
+}
+
+int
+scTestIsImpToTest( const char * impNamePtr, size_t impNameLen )
+{
+    return scTestSetContainsPrefixImp( impNamePtr, impNameLen ) != 0 ? 1 : 0;
+}
+
+size_t
+scTestGetAlgImpCount()
+{
+    return g_algorithmImplementation.size();
+}
+
+void *
+scTestGetAlgImpAt( size_t idx )
+{
+    return g_algorithmImplementation[idx];
+}
+
+size_t
+scTestAlgImpGetAlgName( void * pImp, const char ** outPtr )
+{
+    AlgorithmImplementation * pAlgImp = static_cast<AlgorithmImplementation *>( pImp );
+    *outPtr = pAlgImp->m_algorithmName.data();
+    return pAlgImp->m_algorithmName.size();
+}
+
+size_t
+scTestAlgImpGetModeName( void * pImp, const char ** outPtr )
+{
+    AlgorithmImplementation * pAlgImp = static_cast<AlgorithmImplementation *>( pImp );
+    *outPtr = pAlgImp->m_modeName.data();
+    return pAlgImp->m_modeName.size();
+}
+
+size_t
+scTestAlgImpGetImpName( void * pImp, const char ** outPtr )
+{
+    AlgorithmImplementation * pAlgImp = static_cast<AlgorithmImplementation *>( pImp );
+    *outPtr = pAlgImp->m_implementationName.data();
+    return pAlgImp->m_implementationName.size();
+}
+
+void
+scTestAlgImpGetPerfFunctions(
+    void * pImp,
+    PerfKeySizeSupportedFn * pKeySizeSupported,
+    PerfKeyFn * pKeyFn,
+    PerfDataFn * pDataFn,
+    PerfDataFn * pDecryptFn,
+    PerfCleanFn * pCleanFn )
+{
+    AlgorithmImplementation * pAlgImp = static_cast<AlgorithmImplementation *>( pImp );
+    *pKeySizeSupported = pAlgImp->m_perfKeySizeSupported;
+    *pKeyFn = pAlgImp->m_perfKeyFunction;
+    *pDataFn = pAlgImp->m_perfDataFunction;
+    *pDecryptFn = pAlgImp->m_perfDecryptFunction;
+    *pCleanFn = pAlgImp->m_perfCleanFunction;
+}
+
+void
+scTestAlgImpAddPerfInfo(
+    void * pImp,
+    size_t keySize,
+    size_t dataSize,
+    const char * strPostfixPtr,
+    size_t strPostfixLen,
+    double cPerByte,
+    double cOverhead,
+    double cRange )
+{
+    static std::vector<std::unique_ptr<std::string>> s_postfixes;
+    AlgorithmImplementation * pAlgImp = static_cast<AlgorithmImplementation *>( pImp );
+    AlgorithmImplementation::ALG_PERF_INFO info = {};
+    info.keySize = keySize;
+    info.dataSize = dataSize;
+    info.cPerByte = cPerByte;
+    info.cFixed = cOverhead;
+    info.cRange = cRange;
+    info.operationName = "";
+    s_postfixes.push_back( std::make_unique<std::string>( strPostfixPtr, strPostfixLen ) );
+    info.strPostfix = const_cast<char *>( s_postfixes.back()->c_str() );
+    pAlgImp->m_perfInfo.push_back( info );
+}
+
+size_t
+scTestAlgImpGetPerfInfoCount( void * pImp )
+{
+    return static_cast<AlgorithmImplementation *>( pImp )->m_perfInfo.size();
+}
+
+void
+scTestAlgImpGetPerfInfoAt(
+    void * pImp,
+    size_t idx,
+    size_t * pKeySize,
+    size_t * pDataSize,
+    const char ** outPostfixPtr,
+    size_t * outPostfixLen,
+    double * pCpb,
+    double * pOverhead,
+    double * pRange )
+{
+    AlgorithmImplementation * pAlgImp = static_cast<AlgorithmImplementation *>( pImp );
+    const AlgorithmImplementation::ALG_PERF_INFO & info = pAlgImp->m_perfInfo[idx];
+    *pKeySize = info.keySize;
+    *pDataSize = info.dataSize;
+    *outPostfixPtr = info.strPostfix != nullptr ? info.strPostfix : "";
+    *outPostfixLen = info.strPostfix != nullptr ? strlen( info.strPostfix ) : 0;
+    *pCpb = info.cPerByte;
+    *pOverhead = info.cFixed;
+    *pRange = info.cRange;
+}
+
+size_t
+scTestGetMeasureSizesStringPrefix( const char ** outPtr )
+{
+    *outPtr = g_measure_sizes_stringPrefix.data();
+    return g_measure_sizes_stringPrefix.size();
+}
 
 } // extern "C"

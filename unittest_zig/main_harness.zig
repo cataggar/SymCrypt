@@ -9,7 +9,7 @@ const testutil = @import("testutil.zig");
 pub extern fn print(format: [*:0]const u8, ...) callconv(.c) void;
 pub extern fn iprint(format: [*:0]const u8, ...) callconv(.c) void;
 pub extern fn dprint(format: [*:0]const u8, ...) callconv(.c) void;
-pub extern fn printOutput(delayMilliSeconds: c_int) callconv(.c) void;
+pub const printOutput = @import("perf.zig").printOutput;
 extern fn scTestGenRandom(pbBuf: [*]u8, cbBuf: usize) callconv(.c) c_int;
 extern fn scTestSleepMs(ms: u32) callconv(.c) void;
 extern fn scTestIsAlgorithmPresent(name_ptr: [*]const u8, name_len: usize, isPrefix: u32) callconv(.c) u32;
@@ -17,6 +17,11 @@ extern fn scTestIsAlgorithmPresent(name_ptr: [*]const u8, name_len: usize, isPre
 pub fn fillRandom(buf: []u8) error{RandomFailed}!void {
     if (buf.len == 0) return;
     if (scTestGenRandom(buf.ptr, buf.len) != 0) return error.RandomFailed;
+}
+
+pub fn GENRANDOM(pbBuf: [*]u8, cbBuf: usize) void {
+    if (cbBuf == 0) return;
+    _ = scTestGenRandom(pbBuf, cbBuf);
 }
 
 pub fn fmtBufZ(buf: []u8, comptime fmt: []const u8, args: anytype) [*:0]const u8 {
@@ -48,6 +53,8 @@ pub fn vprint(cond: bool, comptime fmt: []const u8, args: anytype) void {
     }
 }
 
+pub const zvprint = vprint;
+
 pub fn fatal(comptime fmt: []const u8, args: anytype) noreturn {
     var buf: [2048]u8 = undefined;
     fatalImpl(fmtBufZ(&buf, fmt, args));
@@ -77,28 +84,47 @@ pub fn check3(cond: bool, comptime fmt: [:0]const u8, a: anytype) void {
     }
 }
 
-pub fn check4(cond: bool, msg: [*:0]const u8, a: anytype, b: anytype) void {
+pub fn check4(cond: bool, comptime fmt: [:0]const u8, a: anytype, b: anytype) void {
     if (!cond) {
-        var buf: [2048]u8 = undefined;
-        _ = snprintf(&buf, buf.len, msg, a, b);
-        buf[buf.len - 1] = 0;
-        fatalImpl(@ptrCast(&buf));
+        if (comptime std.mem.indexOfScalar(u8, fmt, '{') != null) {
+            fatal(fmt, .{ a, b });
+        } else {
+            var buf: [2048]u8 = undefined;
+            _ = snprintf(&buf, buf.len, fmt.ptr, a, b);
+            buf[buf.len - 1] = 0;
+            fatalImpl(@ptrCast(&buf));
+        }
     }
 }
 
-pub fn check5(cond: bool, msg: [*:0]const u8, a: anytype, b: anytype, c: anytype) void {
+pub fn check5(cond: bool, comptime fmt: [:0]const u8, a: anytype, b: anytype, c: anytype) void {
     if (!cond) {
-        var buf: [2048]u8 = undefined;
-        _ = snprintf(&buf, buf.len, msg, a, b, c);
-        buf[buf.len - 1] = 0;
-        fatalImpl(@ptrCast(&buf));
+        if (comptime std.mem.indexOfScalar(u8, fmt, '{') != null) {
+            fatal(fmt, .{ a, b, c });
+        } else {
+            var buf: [2048]u8 = undefined;
+            _ = snprintf(&buf, buf.len, fmt.ptr, a, b, c);
+            buf[buf.len - 1] = 0;
+            fatalImpl(@ptrCast(&buf));
+        }
     }
 }
 
-pub fn isAlgorithmPresent(algName: [*]const u8, isPrefix: c_int) bool {
+pub fn check6(cond: bool, comptime fmt: []const u8, arg1: anytype, arg2: anytype, arg3: anytype, arg4: anytype) void {
+    if (!cond) {
+        fatal(fmt, .{ arg1, arg2, arg3, arg4 });
+    }
+}
+
+pub export fn isAlgorithmPresent(algName: [*]const u8, isPrefix: c_int) callconv(.c) bool {
     const cstr: [*:0]const u8 = @ptrCast(algName);
     const slice = std.mem.span(cstr);
     return scTestIsAlgorithmPresent(slice.ptr, slice.len, if (isPrefix != 0) 1 else 0) != 0;
+}
+
+pub export fn scTestIsAlgorithmPresentCstr(name: [*:0]const u8, isPrefix: c_int) callconv(.c) c_int {
+    const slice = std.mem.span(name);
+    return if (scTestIsAlgorithmPresent(slice.ptr, slice.len, if (isPrefix != 0) 1 else 0) != 0) 1 else 0;
 }
 
 const kat_mod = @import("kat.zig");

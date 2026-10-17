@@ -34,6 +34,20 @@ pub const test_ecc = @import("test_ecc.zig");
 pub const test_ec_encoding = @import("test_ec_encoding.zig");
 pub const test_rsa_enc = @import("test_rsa_enc.zig");
 pub const test_rsa_sign = @import("test_rsa_sign.zig");
+pub const test_accessors = @import("test_accessors.zig");
+pub const test_wipe = @import("test_wipe.zig");
+pub const test_scs_table = @import("test_scs_table.zig");
+pub const test_scs_tools = @import("test_scs_tools.zig");
+pub const test_selftest = @import("test_selftest.zig");
+pub const test_service_indicator = @import("test_service_indicator.zig");
+pub const test_status_indicator = @import("test_status_indicator.zig");
+pub const test_multi_thread = @import("test_multi_thread.zig");
+pub const test_composite_helpers = @import("test_composite_helpers.zig");
+pub const test_hbs = @import("test_hbs.zig");
+pub const test_kem = @import("test_kem.zig");
+pub const test_pq_dsa = @import("test_pq_dsa.zig");
+pub const test_hpke = @import("test_hpke.zig");
+pub const perf = @import("perf.zig");
 
 extern fn scTestCppMain(argc: c_int, argv: [*][*:0]u8) callconv(.c) c_int;
 
@@ -75,4 +89,18 @@ comptime {
     _ = test_ec_encoding;
     _ = test_rsa_enc;
     _ = test_rsa_sign;
+    _ = test_accessors;
+    _ = test_wipe;
+    _ = test_scs_table;
+    _ = test_scs_tools;
+    _ = test_selftest;
+    _ = test_service_indicator;
+    _ = test_status_indicator;
+    _ = test_multi_thread;
+    _ = test_composite_helpers;
+    _ = test_hbs;
+    _ = test_kem;
+    _ = test_pq_dsa;
+    _ = test_hpke;
+    _ = perf;
 }

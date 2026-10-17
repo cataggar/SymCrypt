@@ -27,7 +27,7 @@ extern fn scTestGetAllImplementations(
 ) callconv(.c) usize;
 extern fn scTestImpIncResults(impPtr: *anyopaque) callconv(.c) void;
 extern fn scTestResultMergeAddAlgImp(
-    handle: *rm.ResultMerge,
+    handle: *anyopaque,
     impPtr: *anyopaque,
     pbData: [*]const u8,
     cbData: usize,

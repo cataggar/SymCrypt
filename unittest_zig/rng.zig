@@ -6,10 +6,20 @@ const h = @import("main_harness.zig");
 extern fn SymCryptSha1(pbData: ?[*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
 
 pub const Rng = extern struct {
-    m_seed: [20]u8,
-    m_blockCtr: u64,
-    m_bytesInBuf: usize,
-    m_buf: [20]u8,
+    m_seed: [20]u8 = @splat(0),
+    m_blockCtr: u64 = std.math.maxInt(u64),
+    m_bytesInBuf: usize = 0,
+    m_buf: [20]u8 = @splat(0),
+
+    pub fn reset(self: *Rng, seed: []const u8) void {
+        scTestRngReset(self, seed.ptr, seed.len);
+    }
+
+    pub fn random(self: *Rng, buf: []u8) void {
+        for (buf) |*b| {
+            b.* = scTestRngByte(self);
+        }
+    }
 
     pub fn byte(self: *Rng) u8 {
         return scTestRngByte(self);
