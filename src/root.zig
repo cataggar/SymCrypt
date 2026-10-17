@@ -60,6 +60,10 @@ pub const mlkem = @import("mlkem.zig");
 pub const composite_mlkem = @import("composite_mlkem.zig");
 pub const sha256 = @import("sha256.zig");
 pub const sha512 = @import("sha512.zig");
+pub const mldsa_primitives = @import("mldsa_primitives.zig");
+pub const mldsa = @import("mldsa.zig");
+pub const composite_encoding = @import("composite_encoding.zig");
+pub const composite_mldsa = @import("composite_mldsa.zig");
 
 comptime {
     _ = build_options;
@@ -113,6 +117,10 @@ comptime {
     _ = composite_mlkem;
     _ = sha256;
     _ = sha512;
+    _ = mldsa_primitives;
+    _ = mldsa;
+    _ = composite_encoding;
+    _ = composite_mldsa;
 
     // Compile-time sanity checks on core types, masks, rotations, and magic constants.
     std.debug.assert(@sizeOf(types.SYMCRYPT_ERROR) == @sizeOf(c_int));
