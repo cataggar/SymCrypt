@@ -8,15 +8,8 @@ const symcrypt_version = std.SemanticVersion{
 
 const common_c_sources: []const []const u8 = &.{
     "a_dispatch.c",
-    "aes-asm.c",
-    "aes-c.c",
-    "aes-default-bc.c",
-    "aes-default.c",
-    "aes-key.c",
     "aes-neon.c",
-    "aes-selftest.c",
     "aesCtrDrbg.c",
-    "AesTables.c",
     "ccm.c",
     "crt.c",
     "dh.c",
