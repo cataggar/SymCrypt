@@ -20,235 +20,43 @@ const PSYMCRYPT_INT = types.PSYMCRYPT_INT;
 const PCSYMCRYPT_INT = types.PCSYMCRYPT_INT;
 const SYMCRYPT_ECURVE_FUNCTIONS = types.SYMCRYPT_ECURVE_FUNCTIONS;
 
-// Extern group-law and scalar-multiplication functions from C (ec_short_weierstrass.c, ec_twisted_edwards.c, ec_montgomery.c, ec_mul.c)
-pub extern fn SymCryptShortWeierstrassSetZero(
-    pCurve: PCSYMCRYPT_ECURVE,
-    poDst: PSYMCRYPT_ECPOINT,
-    pbScratch: PBYTE,
-    cbScratch: SIZE_T,
-) callconv(SYMCRYPT_CALL) void;
+const ec_short_weierstrass = @import("ec_short_weierstrass.zig");
+const ec_twisted_edwards = @import("ec_twisted_edwards.zig");
+const ec_montgomery = @import("ec_montgomery.zig");
+const ec_mul = @import("ec_mul.zig");
 
-pub extern fn SymCryptShortWeierstrassSetDistinguished(
-    pCurve: PCSYMCRYPT_ECURVE,
-    poDst: PSYMCRYPT_ECPOINT,
-    pbScratch: PBYTE,
-    cbScratch: SIZE_T,
-) callconv(SYMCRYPT_CALL) void;
+pub const SymCryptShortWeierstrassSetZero = ec_short_weierstrass.SymCryptShortWeierstrassSetZero;
+pub const SymCryptShortWeierstrassSetDistinguished = ec_short_weierstrass.SymCryptShortWeierstrassSetDistinguished;
+pub const SymCryptShortWeierstrassIsEqual = ec_short_weierstrass.SymCryptShortWeierstrassIsEqual;
+pub const SymCryptShortWeierstrassIsZero = ec_short_weierstrass.SymCryptShortWeierstrassIsZero;
+pub const SymCryptShortWeierstrassOnCurve = ec_short_weierstrass.SymCryptShortWeierstrassOnCurve;
+pub const SymCryptShortWeierstrassAdd = ec_short_weierstrass.SymCryptShortWeierstrassAdd;
+pub const SymCryptShortWeierstrassAddDiffNonZero = ec_short_weierstrass.SymCryptShortWeierstrassAddDiffNonZero;
+pub const SymCryptShortWeierstrassDouble = ec_short_weierstrass.SymCryptShortWeierstrassDouble;
+pub const SymCryptShortWeierstrassDoubleSpecializedAm3 = ec_short_weierstrass.SymCryptShortWeierstrassDoubleSpecializedAm3;
+pub const SymCryptShortWeierstrassNegate = ec_short_weierstrass.SymCryptShortWeierstrassNegate;
+pub const SymCryptShortWeierstrassFillScratchSpaces = ec_short_weierstrass.SymCryptShortWeierstrassFillScratchSpaces;
 
-pub extern fn SymCryptShortWeierstrassIsEqual(
-    pCurve: PCSYMCRYPT_ECURVE,
-    poSrc1: PCSYMCRYPT_ECPOINT,
-    poSrc2: PCSYMCRYPT_ECPOINT,
-    flags: UINT32,
-    pbScratch: PBYTE,
-    cbScratch: SIZE_T,
-) callconv(SYMCRYPT_CALL) UINT32;
+pub const SymCryptTwistedEdwardsSetZero = ec_twisted_edwards.SymCryptTwistedEdwardsSetZero;
+pub const SymCryptTwistedEdwardsSetDistinguished = ec_twisted_edwards.SymCryptTwistedEdwardsSetDistinguished;
+pub const SymCryptTwistedEdwardsIsEqual = ec_twisted_edwards.SymCryptTwistedEdwardsIsEqual;
+pub const SymCryptTwistedEdwardsIsZero = ec_twisted_edwards.SymCryptTwistedEdwardsIsZero;
+pub const SymCryptTwistedEdwardsOnCurve = ec_twisted_edwards.SymCryptTwistedEdwardsOnCurve;
+pub const SymCryptTwistedEdwardsAdd = ec_twisted_edwards.SymCryptTwistedEdwardsAdd;
+pub const SymCryptTwistedEdwardsAddDiffNonZero = ec_twisted_edwards.SymCryptTwistedEdwardsAddDiffNonZero;
+pub const SymCryptTwistedEdwardsDouble = ec_twisted_edwards.SymCryptTwistedEdwardsDouble;
+pub const SymCryptTwistedEdwardsNegate = ec_twisted_edwards.SymCryptTwistedEdwardsNegate;
+pub const SymCryptTwistedEdwardsFillScratchSpaces = ec_twisted_edwards.SymCryptTwistedEdwardsFillScratchSpaces;
 
-pub extern fn SymCryptShortWeierstrassIsZero(
-    pCurve: PCSYMCRYPT_ECURVE,
-    poSrc: PCSYMCRYPT_ECPOINT,
-    pbScratch: PBYTE,
-    cbScratch: SIZE_T,
-) callconv(SYMCRYPT_CALL) UINT32;
+pub const SymCryptMontgomerySetDistinguished = ec_montgomery.SymCryptMontgomerySetDistinguished;
+pub const SymCryptMontgomeryIsEqual = ec_montgomery.SymCryptMontgomeryIsEqual;
+pub const SymCryptMontgomeryIsZero = ec_montgomery.SymCryptMontgomeryIsZero;
+pub const SymCryptMontgomeryPointScalarMul = ec_montgomery.SymCryptMontgomeryPointScalarMul;
+pub const SymCryptMontgomeryFillScratchSpaces = ec_montgomery.SymCryptMontgomeryFillScratchSpaces;
 
-pub extern fn SymCryptShortWeierstrassOnCurve(
-    pCurve: PCSYMCRYPT_ECURVE,
-    poSrc: PCSYMCRYPT_ECPOINT,
-    pbScratch: PBYTE,
-    cbScratch: SIZE_T,
-) callconv(SYMCRYPT_CALL) UINT32;
-
-pub extern fn SymCryptShortWeierstrassAdd(
-    pCurve: PCSYMCRYPT_ECURVE,
-    poSrc1: PCSYMCRYPT_ECPOINT,
-    poSrc2: PCSYMCRYPT_ECPOINT,
-    poDst: PSYMCRYPT_ECPOINT,
-    flags: UINT32,
-    pbScratch: PBYTE,
-    cbScratch: SIZE_T,
-) callconv(SYMCRYPT_CALL) void;
-
-pub extern fn SymCryptShortWeierstrassAddDiffNonZero(
-    pCurve: PCSYMCRYPT_ECURVE,
-    poSrc1: PCSYMCRYPT_ECPOINT,
-    poSrc2: PCSYMCRYPT_ECPOINT,
-    poDst: PSYMCRYPT_ECPOINT,
-    pbScratch: PBYTE,
-    cbScratch: SIZE_T,
-) callconv(SYMCRYPT_CALL) void;
-
-pub extern fn SymCryptShortWeierstrassDouble(
-    pCurve: PCSYMCRYPT_ECURVE,
-    poSrc: PCSYMCRYPT_ECPOINT,
-    poDst: PSYMCRYPT_ECPOINT,
-    flags: UINT32,
-    pbScratch: PBYTE,
-    cbScratch: SIZE_T,
-) callconv(SYMCRYPT_CALL) void;
-
-pub extern fn SymCryptShortWeierstrassDoubleSpecializedAm3(
-    pCurve: PCSYMCRYPT_ECURVE,
-    poSrc: PCSYMCRYPT_ECPOINT,
-    poDst: PSYMCRYPT_ECPOINT,
-    flags: UINT32,
-    pbScratch: PBYTE,
-    cbScratch: SIZE_T,
-) callconv(SYMCRYPT_CALL) void;
-
-pub extern fn SymCryptShortWeierstrassNegate(
-    pCurve: PCSYMCRYPT_ECURVE,
-    poSrc: PSYMCRYPT_ECPOINT,
-    mask: UINT32,
-    pbScratch: PBYTE,
-    cbScratch: SIZE_T,
-) callconv(SYMCRYPT_CALL) void;
-
-pub extern fn SymCryptShortWeierstrassFillScratchSpaces(
-    pCurve: PSYMCRYPT_ECURVE,
-) callconv(SYMCRYPT_CALL) void;
-
-pub extern fn SymCryptTwistedEdwardsSetZero(
-    pCurve: PCSYMCRYPT_ECURVE,
-    poDst: PSYMCRYPT_ECPOINT,
-    pbScratch: PBYTE,
-    cbScratch: SIZE_T,
-) callconv(SYMCRYPT_CALL) void;
-
-pub extern fn SymCryptTwistedEdwardsSetDistinguished(
-    pCurve: PCSYMCRYPT_ECURVE,
-    poDst: PSYMCRYPT_ECPOINT,
-    pbScratch: PBYTE,
-    cbScratch: SIZE_T,
-) callconv(SYMCRYPT_CALL) void;
-
-pub extern fn SymCryptTwistedEdwardsIsEqual(
-    pCurve: PCSYMCRYPT_ECURVE,
-    poSrc1: PCSYMCRYPT_ECPOINT,
-    poSrc2: PCSYMCRYPT_ECPOINT,
-    flags: UINT32,
-    pbScratch: PBYTE,
-    cbScratch: SIZE_T,
-) callconv(SYMCRYPT_CALL) UINT32;
-
-pub extern fn SymCryptTwistedEdwardsIsZero(
-    pCurve: PCSYMCRYPT_ECURVE,
-    poSrc: PCSYMCRYPT_ECPOINT,
-    pbScratch: PBYTE,
-    cbScratch: SIZE_T,
-) callconv(SYMCRYPT_CALL) UINT32;
-
-pub extern fn SymCryptTwistedEdwardsOnCurve(
-    pCurve: PCSYMCRYPT_ECURVE,
-    poSrc: PCSYMCRYPT_ECPOINT,
-    pbScratch: PBYTE,
-    cbScratch: SIZE_T,
-) callconv(SYMCRYPT_CALL) UINT32;
-
-pub extern fn SymCryptTwistedEdwardsAdd(
-    pCurve: PCSYMCRYPT_ECURVE,
-    poSrc1: PCSYMCRYPT_ECPOINT,
-    poSrc2: PCSYMCRYPT_ECPOINT,
-    poDst: PSYMCRYPT_ECPOINT,
-    flags: UINT32,
-    pbScratch: PBYTE,
-    cbScratch: SIZE_T,
-) callconv(SYMCRYPT_CALL) void;
-
-pub extern fn SymCryptTwistedEdwardsAddDiffNonZero(
-    pCurve: PCSYMCRYPT_ECURVE,
-    poSrc1: PCSYMCRYPT_ECPOINT,
-    poSrc2: PCSYMCRYPT_ECPOINT,
-    poDst: PSYMCRYPT_ECPOINT,
-    pbScratch: PBYTE,
-    cbScratch: SIZE_T,
-) callconv(SYMCRYPT_CALL) void;
-
-pub extern fn SymCryptTwistedEdwardsDouble(
-    pCurve: PCSYMCRYPT_ECURVE,
-    poSrc: PCSYMCRYPT_ECPOINT,
-    poDst: PSYMCRYPT_ECPOINT,
-    flags: UINT32,
-    pbScratch: PBYTE,
-    cbScratch: SIZE_T,
-) callconv(SYMCRYPT_CALL) void;
-
-pub extern fn SymCryptTwistedEdwardsNegate(
-    pCurve: PCSYMCRYPT_ECURVE,
-    poSrc: PSYMCRYPT_ECPOINT,
-    mask: UINT32,
-    pbScratch: PBYTE,
-    cbScratch: SIZE_T,
-) callconv(SYMCRYPT_CALL) void;
-
-pub extern fn SymCryptTwistedEdwardsFillScratchSpaces(
-    pCurve: PSYMCRYPT_ECURVE,
-) callconv(SYMCRYPT_CALL) void;
-
-pub extern fn SymCryptMontgomerySetDistinguished(
-    pCurve: PCSYMCRYPT_ECURVE,
-    poDst: PSYMCRYPT_ECPOINT,
-    pbScratch: PBYTE,
-    cbScratch: SIZE_T,
-) callconv(SYMCRYPT_CALL) void;
-
-pub extern fn SymCryptMontgomeryIsEqual(
-    pCurve: PCSYMCRYPT_ECURVE,
-    poSrc1: PCSYMCRYPT_ECPOINT,
-    poSrc2: PCSYMCRYPT_ECPOINT,
-    flags: UINT32,
-    pbScratch: PBYTE,
-    cbScratch: SIZE_T,
-) callconv(SYMCRYPT_CALL) UINT32;
-
-pub extern fn SymCryptMontgomeryIsZero(
-    pCurve: PCSYMCRYPT_ECURVE,
-    poSrc: PCSYMCRYPT_ECPOINT,
-    pbScratch: PBYTE,
-    cbScratch: SIZE_T,
-) callconv(SYMCRYPT_CALL) UINT32;
-
-pub extern fn SymCryptMontgomeryPointScalarMul(
-    pCurve: PCSYMCRYPT_ECURVE,
-    piScalar: PCSYMCRYPT_INT,
-    poSrc: ?PCSYMCRYPT_ECPOINT,
-    flags: UINT32,
-    poDst: PSYMCRYPT_ECPOINT,
-    pbScratch: PBYTE,
-    cbScratch: SIZE_T,
-) callconv(SYMCRYPT_CALL) SYMCRYPT_ERROR;
-
-pub extern fn SymCryptMontgomeryFillScratchSpaces(
-    pCurve: PSYMCRYPT_ECURVE,
-) callconv(SYMCRYPT_CALL) void;
-
-pub extern fn SymCryptEcpointGenericSetRandom(
-    pCurve: PCSYMCRYPT_ECURVE,
-    piScalar: PSYMCRYPT_INT,
-    poDst: PSYMCRYPT_ECPOINT,
-    pbScratch: PBYTE,
-    cbScratch: SIZE_T,
-) callconv(SYMCRYPT_CALL) void;
-
-pub extern fn SymCryptEcpointScalarMulFixedWindow(
-    pCurve: PCSYMCRYPT_ECURVE,
-    piScalar: PCSYMCRYPT_INT,
-    poSrc: ?PCSYMCRYPT_ECPOINT,
-    flags: UINT32,
-    poDst: PSYMCRYPT_ECPOINT,
-    pbScratch: PBYTE,
-    cbScratch: SIZE_T,
-) callconv(SYMCRYPT_CALL) SYMCRYPT_ERROR;
-
-pub extern fn SymCryptEcpointMultiScalarMulWnafWithInterleaving(
-    pCurve: PCSYMCRYPT_ECURVE,
-    piTableScalars: [*]const PCSYMCRYPT_INT,
-    poTablePoints: [*]const ?PCSYMCRYPT_ECPOINT,
-    nPoints: UINT32,
-    flags: UINT32,
-    poDst: PSYMCRYPT_ECPOINT,
-    pbScratch: PBYTE,
-    cbScratch: SIZE_T,
-) callconv(SYMCRYPT_CALL) SYMCRYPT_ERROR;
+pub const SymCryptEcpointGenericSetRandom = ec_mul.SymCryptEcpointGenericSetRandom;
+pub const SymCryptEcpointScalarMulFixedWindow = ec_mul.SymCryptEcpointScalarMulFixedWindow;
+pub const SymCryptEcpointMultiScalarMulWnafWithInterleaving = ec_mul.SymCryptEcpointMultiScalarMulWnafWithInterleaving;
 
 const nullEntry: SYMCRYPT_ECURVE_FUNCTIONS = .{
     .setZeroFunc = null,

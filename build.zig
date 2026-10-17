@@ -12,12 +12,6 @@ const common_c_sources: []const []const u8 = &.{
     "dlgroup.c",
     "dlkey.c",
     "dsa.c",
-    "ec_dh.c",
-    "ec_dsa.c",
-    "ec_montgomery.c",
-    "ec_mul.c",
-    "ec_short_weierstrass.c",
-    "ec_twisted_edwards.c",
 };
 
 const x86_specialized_c_sources: []const []const u8 = &.{};

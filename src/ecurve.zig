@@ -53,11 +53,8 @@ const SYMCRYPT_ECURVE_SIZES = struct {
     eCoordinates: SYMCRYPT_ECPOINT_COORDINATES,
 };
 
-pub extern fn SymCryptOfflinePrecomputation(
-    pCurve: PSYMCRYPT_ECURVE,
-    pbScratch: PBYTE,
-    cbScratch: SIZE_T,
-) callconv(SYMCRYPT_CALL) void;
+pub const ec_mul = @import("ec_mul.zig");
+const SymCryptOfflinePrecomputation = ec_mul.SymCryptOfflinePrecomputation;
 
 fn SymCryptEcurveValidateAndComputeSizes(
     pParams: PCSYMCRYPT_ECURVE_PARAMS,
