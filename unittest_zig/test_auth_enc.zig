@@ -739,7 +739,7 @@ fn testAuthEncKats() void {
             optMultiImp = AuthEncMultiImp.init(catSlice);
             skipData = (optMultiImp.?.m_nImps == 0);
             if (!skipData) {
-                iprint("%s%s", sep, optMultiImp.?.algNameZ());
+                h.ziprint("{s}{s}", .{ std.mem.span(sep), std.mem.span(optMultiImp.?.algNameZ()) });
                 sep = ", ";
                 doneAnything = true;
             }

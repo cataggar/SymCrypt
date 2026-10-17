@@ -196,7 +196,7 @@ pub export fn testTlsCbcHmacAlgorithms() callconv(.c) void {
         var imp = TlsCbcHmacMultiImp.init("TlsCbcHmacSha1");
         defer imp.deinit();
         if (imp.m_nImps > 0) {
-            iprint("%s%s", sep, imp.algNameZ());
+            h.ziprint("{s}{s}", .{ std.mem.span(sep), std.mem.span(imp.algNameZ()) });
             sep = ", ";
             doneAnything = true;
             testTlsCbcHmacSingle(&imp, SymCryptHmacSha1Algorithm);
@@ -207,7 +207,7 @@ pub export fn testTlsCbcHmacAlgorithms() callconv(.c) void {
         var imp = TlsCbcHmacMultiImp.init("TlsCbcHmacSha256");
         defer imp.deinit();
         if (imp.m_nImps > 0) {
-            iprint("%s%s", sep, imp.algNameZ());
+            h.ziprint("{s}{s}", .{ std.mem.span(sep), std.mem.span(imp.algNameZ()) });
             sep = ", ";
             doneAnything = true;
             testTlsCbcHmacSingle(&imp, SymCryptHmacSha256Algorithm);
@@ -218,7 +218,7 @@ pub export fn testTlsCbcHmacAlgorithms() callconv(.c) void {
         var imp = TlsCbcHmacMultiImp.init("TlsCbcHmacSha384");
         defer imp.deinit();
         if (imp.m_nImps > 0) {
-            iprint("%s%s", sep, imp.algNameZ());
+            h.ziprint("{s}{s}", .{ std.mem.span(sep), std.mem.span(imp.algNameZ()) });
             sep = ", ";
             doneAnything = true;
             testTlsCbcHmacSingle(&imp, SymCryptHmacSha384Algorithm);

@@ -10,10 +10,6 @@ const common_c_sources: []const []const u8 = &.{};
 
 const x86_specialized_c_sources: []const []const u8 = &.{};
 
-const unittest_cpp_sources: []const []const u8 = &.{
-    "cpp_bridge.cpp",
-};
-
 const kat_file_names: []const []const u8 = &.{
     "kat_IEEE802_11SaeCustom.dat",
     "kat_authenc.dat",
@@ -80,6 +76,7 @@ pub fn build(b: *std.Build) void {
     build_options.addOption(bool, "use_asm", effective_use_asm);
     build_options.addOption(bool, "fips_build", fips_build);
     build_options.addOption(std.SemanticVersion, "symcrypt_version", symcrypt_version);
+    const build_options_mod = build_options.createModule();
 
     const common_mod = b.createModule(.{
         .root_source_file = b.path("src/root.zig"),
@@ -88,7 +85,7 @@ pub fn build(b: *std.Build) void {
         .link_libc = true,
         .pic = if (os_tag == .windows) null else true,
     });
-    common_mod.addOptions("build_options", build_options);
+    common_mod.addImport("build_options", build_options_mod);
     configureModuleCommon(b, common_mod, generated_headers, target, optimize, effective_use_asm, fips_build);
     addSymCryptCommonSources(b, common_mod, target, optimize, effective_use_asm);
 
@@ -117,15 +114,22 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(symcrypt_plus_lib);
 
     if (build_tests and os_tag != .windows) {
+        const types_mod = b.createModule(.{
+            .root_source_file = b.path("src/types.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+        types_mod.addImport("build_options", build_options_mod);
+
         const unittest_mod = b.createModule(.{
             .root_source_file = b.path("unittest_zig/root.zig"),
             .target = target,
             .optimize = optimize,
             .link_libc = true,
-            .link_libcpp = true,
             .pic = true,
         });
-        unittest_mod.addOptions("build_options", build_options);
+        unittest_mod.addImport("build_options", build_options_mod);
+        unittest_mod.addImport("symcrypt_types", types_mod);
         for (kat_file_names) |kat_name| {
             const rel_path = std.fmt.allocPrint(b.allocator, "unittest/{s}", .{kat_name}) catch @panic("OOM");
             unittest_mod.addAnonymousImport(kat_name, .{
@@ -141,26 +145,6 @@ pub fn build(b: *std.Build) void {
         unittest_mod.addCMacro("INCLUDE_IMPL_CNG", "0");
         unittest_mod.addCMacro("INCLUDE_IMPL_MSBIGNUM", "0");
         unittest_mod.addCMacro("INCLUDE_IMPL_RSA32", "0");
-
-        const cxx_flags = getCxxFlags(b, target, optimize, &.{}) catch @panic("OOM");
-        unittest_mod.addCSourceFiles(.{
-            .root = b.path("unittest/lib"),
-            .files = unittest_cpp_sources,
-            .flags = cxx_flags,
-        });
-        unittest_mod.addCSourceFile(.{
-            .file = b.path("unittest/lib/env_linuxSymCryptUnittest.cpp"),
-            .flags = cxx_flags,
-        });
-
-        const main_extra_flags: []const []const u8 = if (arch == .x86_64 or arch == .x86)
-            targetFeatureFlags(&.{ "+sse4.1", "+sse4.2", "+avx", "+avx2" })
-        else
-            &.{};
-        unittest_mod.addCSourceFile(.{
-            .file = b.path("unittest/exe_posix/main_exe.cpp"),
-            .flags = getCxxFlags(b, target, optimize, main_extra_flags) catch @panic("OOM"),
-        });
 
         if (effective_use_asm and arch == .x86_64) {
             const asm_flags = getAsmFlags(b, target, optimize) catch @panic("OOM");

@@ -12,7 +12,7 @@ pub const KatData = extern struct {
     m_pbData: [*]const u8,
     m_pbEnd: [*]const u8,
     m_line: i64,
-    m_name: [*:0]u8,
+    m_name: [*:0]const u8,
 
     fn isEmpty(self: *const KatData) bool {
         return @intFromPtr(self.m_pbData) >= @intFromPtr(self.m_pbEnd);
@@ -283,19 +283,6 @@ pub fn katParseInteger(item: *const KatItem, name: []const u8) i64 {
     }
 }
 
-extern fn scTestKatItemSetType(pKatItem: *anyopaque, itemType: c_int, line: i64) callconv(.c) void;
-extern fn scTestKatItemSetCategory(pKatItem: *anyopaque, ptr: [*]const u8, len: usize) callconv(.c) void;
-extern fn scTestKatItemClearData(pKatItem: *anyopaque, line: i64) callconv(.c) void;
-extern fn scTestKatItemHasField(pKatItem: *const anyopaque, name_ptr: [*]const u8, name_len: usize) callconv(.c) c_int;
-extern fn scTestKatItemAddData(
-    pKatItem: *anyopaque,
-    name_ptr: [*]const u8,
-    name_len: usize,
-    val_ptr: [*]const u8,
-    val_len: usize,
-    line: i64,
-) callconv(.c) void;
-
 pub export fn charToLower(c: u8) callconv(.c) u8 {
     if (c >= 'A' and c <= 'Z') {
         return c + ('a' - 'A');
@@ -321,109 +308,6 @@ fn stripAlloc(strIn: []const u8, stripAll: bool) []u8 {
             s = s[0 .. s.len - 1];
         }
         return std.heap.c_allocator.dupe(u8, s) catch h.fatal("Out of memory", .{});
-    }
-}
-
-pub export fn scTestKatGetItem(kat: *KatData, pKatItem: *anyopaque) callconv(.c) void {
-    var inDataSet = false;
-    while (true) {
-        kat.skipSpace();
-        if (kat.atEol()) {
-            if (inDataSet) {
-                kat.skipNewlines();
-                scTestKatItemSetType(pKatItem, KAT_TYPE_DATASET, kat.m_line);
-                break;
-            } else {
-                if (kat.isEmpty()) {
-                    scTestKatItemSetType(pKatItem, KAT_TYPE_END, kat.m_line);
-                    break;
-                }
-                kat.skipNewlines();
-                continue;
-            }
-        }
-
-        if (kat.next() == '[') {
-            if (inDataSet) {
-                h.fatal("Missing blank line before category [...] marker on line {d}", .{kat.m_line});
-            }
-
-            const pbStart = kat.m_pbData;
-            const startLine = kat.m_line;
-            while (!kat.atEol() and kat.next() != ']') {
-                kat.advance();
-            }
-
-            if (kat.atEol()) {
-                h.fatal("Unclosed '[' in line {d}", .{startLine});
-            }
-
-            const pbEnd = kat.m_pbData;
-            kat.advance(); // skip ']'
-
-            kat.skipSpace();
-            if (!kat.atEol()) {
-                h.fatal("Extra data after '[...]' in line {d}", .{kat.m_line});
-            }
-
-            scTestKatItemSetType(pKatItem, KAT_TYPE_CATEGORY, kat.m_line);
-            const cat_len = (@intFromPtr(pbEnd) - @intFromPtr(pbStart)) - 1;
-            scTestKatItemSetCategory(pKatItem, pbStart + 1, cat_len);
-
-            kat.skipNewlines();
-            break;
-        }
-
-        {
-            const nameStart = kat.m_pbData;
-            const startLine = kat.m_line;
-            while (!kat.atEol() and kat.next() != '=') {
-                kat.advance();
-            }
-
-            if (kat.atEol()) {
-                h.fatal("Missing = in line {d}", .{startLine});
-            }
-
-            const nameEnd = kat.m_pbData;
-            kat.advance(); // skip '='
-            const dataStart = kat.m_pbData;
-
-            while (!kat.atEol()) {
-                kat.advance();
-            }
-            const dataEnd = kat.m_pbData;
-
-            const raw_name = nameStart[0 .. @intFromPtr(nameEnd) - @intFromPtr(nameStart)];
-            const raw_data = dataStart[0 .. @intFromPtr(dataEnd) - @intFromPtr(dataStart)];
-
-            const name = stripAlloc(raw_name, false);
-            defer std.heap.c_allocator.free(name);
-            const data = stripAlloc(raw_data, true);
-            defer std.heap.c_allocator.free(data);
-
-            if (!inDataSet) {
-                inDataSet = true;
-                scTestKatItemClearData(pKatItem, kat.m_line);
-            }
-
-            for (name) |*ch| {
-                ch.* = charToLower(ch.*);
-            }
-
-            if (scTestKatItemHasField(pKatItem, name.ptr, name.len) != 0) {
-                h.fatal("Duplicate data field \"{s}\"in data set in line {d}", .{ name, kat.m_line });
-            }
-
-            scTestKatItemAddData(pKatItem, name.ptr, name.len, data.ptr, data.len, kat.m_line);
-
-            if (!kat.isEmpty() and kat.next() == '\r') {
-                kat.advance();
-            }
-            if (!kat.isEmpty() and kat.next() == '\n') {
-                kat.advance();
-            }
-        }
     }
 }
 
@@ -561,9 +445,19 @@ const embedded_kats = [_]EmbeddedKat{
     .{ .name = "kat_xts.dat", .data = @embedFile("kat_xts.dat") },
 };
 
-extern fn scTestNewKatData(name: [*:0]u8, pbData: [*]const u8, cbData: usize) callconv(.c) *KatData;
+pub export fn scTestNewKatData(name: [*:0]const u8, pbData: [*]const u8, cbData: usize) callconv(.c) *KatData {
+    const kd = std.heap.c_allocator.create(KatData) catch h.fatal("Out of memory", .{});
+    kd.* = .{
+        .m_pbStart = pbData,
+        .m_pbData = pbData,
+        .m_pbEnd = pbData + cbData,
+        .m_line = 1,
+        .m_name = name,
+    };
+    return kd;
+}
 
-pub export fn getCustomResource(resourceName: [*:0]u8, resourceType: [*:0]u8) callconv(.c) *KatData {
+pub export fn getCustomResource(resourceName: [*:0]const u8, resourceType: [*:0]const u8) callconv(.c) ?*KatData {
     _ = resourceType;
     const req = std.mem.span(resourceName);
     for (embedded_kats) |entry| {
@@ -607,7 +501,7 @@ pub const ZigKatItem = struct {
 
     pub fn findDataItem(self: *const ZigKatItem, name: []const u8) ?*const ZigKatDataItem {
         for (self.dataItems.items) |*it| {
-            if (std.mem.eql(u8, it.name, name)) {
+            if (std.ascii.eqlIgnoreCase(it.name, name)) {
                 return it;
             }
         }
@@ -792,3 +686,82 @@ pub fn findEmbeddedResource(name: []const u8) ?h.DataResource {
     }
     return null;
 }
+
+pub export fn scTestKatDestroy(pKat: *KatData) callconv(.c) void {
+    std.heap.c_allocator.destroy(pKat);
+}
+
+pub export fn scTestKatGetNextItem(pKat: *KatData, pItemVoid: *anyopaque) callconv(.c) void {
+    const pItem: *ZigKatItem = @ptrCast(@alignCast(pItemVoid));
+    var reader = ZigKatReader{ .kat = pKat.* };
+    reader.getKatItem(pItem);
+    pKat.* = reader.kat;
+}
+
+pub export fn scTestKatReportWrongData(
+    algName: [*:0]const u8,
+    dataDesc: [*:0]const u8,
+    pbExpected: [*]const u8,
+    cbExpected: usize,
+    pbActual: [*]const u8,
+    cbActual: usize,
+    line: i64,
+) callconv(.c) void {
+    h.zprint("\nWrong {s} result ({s}) in line {d}. \nExpected ", .{ std.mem.span(algName), std.mem.span(dataDesc), line });
+    h.printHex(pbExpected[0..cbExpected]);
+    h.zprint("\nGot      ", .{});
+    h.printHex(pbActual[0..cbActual]);
+    h.ziprint("\n", .{});
+}
+
+pub export fn scTestKatItemCreate() callconv(.c) ?*anyopaque {
+    const p = std.heap.c_allocator.create(ZigKatItem) catch return null;
+    p.* = .{};
+    return p;
+}
+
+pub export fn scTestKatItemDestroy(pItemVoid: *anyopaque) callconv(.c) void {
+    const pItem: *ZigKatItem = @ptrCast(@alignCast(pItemVoid));
+    pItem.deinit();
+    std.heap.c_allocator.destroy(pItem);
+}
+
+pub export fn scTestKatItemType(pItemVoid: *const anyopaque) callconv(.c) c_int {
+    const pItem: *const ZigKatItem = @ptrCast(@alignCast(pItemVoid));
+    return pItem.type;
+}
+
+pub export fn scTestKatItemLine(pItemVoid: *const anyopaque) callconv(.c) i64 {
+    const pItem: *const ZigKatItem = @ptrCast(@alignCast(pItemVoid));
+    return pItem.line;
+}
+
+pub export fn scTestKatItemCategory(pItemVoid: *const anyopaque, pLen: *usize) callconv(.c) [*]const u8 {
+    const pItem: *const ZigKatItem = @ptrCast(@alignCast(pItemVoid));
+    pLen.* = pItem.categoryName.len;
+    return if (pItem.categoryName.len > 0) pItem.categoryName.ptr else "";
+}
+
+pub export fn scTestKatItemDataCount(pItemVoid: *const anyopaque) callconv(.c) usize {
+    const pItem: *const ZigKatItem = @ptrCast(@alignCast(pItemVoid));
+    return pItem.dataItems.items.len;
+}
+
+pub export fn scTestKatIsFieldPresent(pItemVoid: *const anyopaque, name: [*:0]const u8) callconv(.c) u32 {
+    const pItem: *const ZigKatItem = @ptrCast(@alignCast(pItemVoid));
+    return if (pItem.isFieldPresent(std.mem.span(name))) 1 else 0;
+}
+
+pub export fn scTestKatParseInteger(pItemVoid: *const anyopaque, name: [*:0]const u8) callconv(.c) i64 {
+    const pItem: *const ZigKatItem = @ptrCast(@alignCast(pItemVoid));
+    return pItem.parseInteger(std.mem.span(name));
+}
+
+pub export fn scTestKatParseDataAlloc(pItemVoid: *const anyopaque, name: [*:0]const u8, pOutLen: *usize) callconv(.c) [*]u8 {
+    const pItem: *const ZigKatItem = @ptrCast(@alignCast(pItemVoid));
+    const it = pItem.findDataItem(std.mem.span(name)) orelse {
+        h.fatal("Could not find dataset field \"{s}\" in dataset at line {d}", .{ std.mem.span(name), pItem.line });
+    };
+    return scTestKatParseDataRaw(it.data.ptr, it.data.len, it.line, pOutLen);
+}
+
