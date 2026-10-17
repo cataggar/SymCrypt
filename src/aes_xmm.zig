@@ -563,11 +563,9 @@ pub fn SymCryptAesCbcEncryptXmm(
     rem -= SYMCRYPT_AES_BLOCK_SIZE;
 
     while (rem >= SYMCRYPT_AES_BLOCK_SIZE) {
-        d = load128(src) ^ rkLast;
-        aesEncrypt1Chain(pExpandedKey, &c, d);
+        d = load128(src) ^ rk0;
+        aesEncrypt1Chain(pExpandedKey, &c, d ^ rkLast);
         store128(dst, c ^ d);
-        d ^= rk0;
-        c ^= d;
 
         dst += SYMCRYPT_AES_BLOCK_SIZE;
         src += SYMCRYPT_AES_BLOCK_SIZE;
