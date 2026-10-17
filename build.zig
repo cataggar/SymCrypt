@@ -13,18 +13,14 @@ const common_c_sources: []const []const u8 = &.{
     "dlkey.c",
     "dsa.c",
     "ec_dh.c",
-    "ec_dispatch.c",
     "ec_dsa.c",
-    "ec_internal_curve_params.c",
-    "ec_internal_curves.c",
     "ec_montgomery.c",
     "ec_mul.c",
     "ec_short_weierstrass.c",
     "ec_twisted_edwards.c",
-    "eckey.c",
-    "ecpoint.c",
-    "ecurve.c",
 };
+
+const x86_specialized_c_sources: []const []const u8 = &.{};
 
 const unittest_cpp_sources: []const []const u8 = &.{
     "cpp_bridge.cpp",

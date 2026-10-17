@@ -995,6 +995,8 @@ pub inline fn SYMCRYPT_INTERNAL_SIZEOF_MODELEMENT_FROM_BITS(bitsize: u32) u32 {
     return SYMCRYPT_FDEF_SIZEOF_MODELEMENT_FROM_DIGITS(SYMCRYPT_FDEF_DIGITS_FROM_BITS(bitsize));
 }
 
+pub const SYMCRYPT_SIZEOF_MODELEMENT_FROM_BITS = SYMCRYPT_INTERNAL_SIZEOF_MODELEMENT_FROM_BITS;
+
 pub inline fn SYMCRYPT_SCRATCH_BYTES_FOR_INT_TO_DIVISOR(nDigits: u32) u32 {
     return 16 * nDigits;
 }
@@ -1112,7 +1114,6 @@ pub inline fn SYMCRYPT_SCRATCH_BYTES_FOR_MODMULTIEXP(nModDigits: u32, nBases: u3
         (nBases * (@as(u32, 1) << SYMCRYPT_FDEF_MAX_WINDOW_MODEXP) + 4) * SYMCRYPT_FDEF_SIZEOF_MODELEMENT_FROM_DIGITS(nModDigits) +
         (((nBases * nBitsExp * @sizeOf(UINT32)) + align_val - 1) & ~(align_val - 1));
 }
-
 pub const SYMCRYPT_TRIALDIVISION_PRIME = extern struct {
     invMod2e64: UINT64,
     compareLimit: UINT64,
@@ -1306,3 +1307,329 @@ pub inline fn SYMCRYPT_INTERNAL_SCRATCH_BYTES_FOR_RSA_PSS(hashAlgorithm: PCSYMCR
         nBytesMessage +
         3 * nBytesPSS + 5;
 }
+
+// ============================================================================
+// Elliptic Curve Types, Enums, and Constants
+// ============================================================================
+
+pub const SYMCRYPT_ECURVE_GEN_ALG_ID = enum(c_int) {
+    SYMCRYPT_ECURVE_GEN_ALG_ID_NULL = 0,
+    _,
+};
+
+pub const SYMCRYPT_ECKEY_PRIVATE_FORMAT = enum(c_int) {
+    SYMCRYPT_ECKEY_PRIVATE_FORMAT_NULL = 0,
+    SYMCRYPT_ECKEY_PRIVATE_FORMAT_CANONICAL = 1,
+    SYMCRYPT_ECKEY_PRIVATE_FORMAT_DIVH = 2,
+    SYMCRYPT_ECKEY_PRIVATE_FORMAT_DIVH_TIMESH = 3,
+    _,
+};
+
+pub const SYMCRYPT_ECKEY_PRIVATE_FORMAT_NULL: UINT32 = 0;
+pub const SYMCRYPT_ECKEY_PRIVATE_FORMAT_CANONICAL: UINT32 = 1;
+pub const SYMCRYPT_ECKEY_PRIVATE_FORMAT_DIVH: UINT32 = 2;
+pub const SYMCRYPT_ECKEY_PRIVATE_FORMAT_DIVH_TIMESH: UINT32 = 3;
+
+pub const SYMCRYPT_ECURVE_PARAMS_V2_EXTENSION = extern struct {
+    PrivateKeyDefaultFormat: UINT32,
+    HighBitRestrictionNumOfBits: UINT32,
+    HighBitRestrictionPosition: UINT32,
+    HighBitRestrictionValue: UINT32,
+};
+pub const PSYMCRYPT_ECURVE_PARAMS_V2_EXTENSION = *SYMCRYPT_ECURVE_PARAMS_V2_EXTENSION;
+pub const PCSYMCRYPT_ECURVE_PARAMS_V2_EXTENSION = *const SYMCRYPT_ECURVE_PARAMS_V2_EXTENSION;
+
+pub const SYMCRYPT_ECURVE_PARAMS = extern struct {
+    version: UINT32,
+    type: SYMCRYPT_ECURVE_TYPE,
+    algId: SYMCRYPT_ECURVE_GEN_ALG_ID,
+    cbFieldLength: UINT32,
+    cbSubgroupOrder: UINT32,
+    cbCofactor: UINT32,
+    cbSeed: UINT32,
+};
+pub const PSYMCRYPT_ECURVE_PARAMS = *SYMCRYPT_ECURVE_PARAMS;
+pub const PCSYMCRYPT_ECURVE_PARAMS = *const SYMCRYPT_ECURVE_PARAMS;
+
+pub const SYMCRYPT_ECURVE_MIN_BITSIZE_FMOD: UINT32 = 20;
+pub const SYMCRYPT_ECURVE_MIN_BITSIZE_GORD: UINT32 = 32;
+pub const SYMCRYPT_ECURVE_MAX_BITSIZE_FMOD: UINT32 = 1024;
+pub const SYMCRYPT_ECURVE_MAX_BITSIZE_GORD: UINT32 = 1024;
+pub const SYMCRYPT_ECURVE_MAX_COFACTOR_POWER: UINT32 = 16;
+pub const SYMCRYPT_INTERNAL_ECURVE_VERSION_LATEST: UINT32 = 1;
+
+pub const SYMCRYPT_ECPOINT_FORMAT_MAX_LENGTH: UINT32 = 4;
+
+pub const SYMCRYPT_ECPOINT_COORDINATES = enum(c_int) {
+    SYMCRYPT_ECPOINT_COORDINATES_INVALID = 0x00,
+    SYMCRYPT_ECPOINT_COORDINATES_SINGLE = 0x11,
+    SYMCRYPT_ECPOINT_COORDINATES_AFFINE = 0x22,
+    SYMCRYPT_ECPOINT_COORDINATES_PROJECTIVE = 0x33,
+    SYMCRYPT_ECPOINT_COORDINATES_JACOBIAN = 0x43,
+    SYMCRYPT_ECPOINT_COORDINATES_EXTENDED_PROJECTIVE = 0x54,
+    SYMCRYPT_ECPOINT_COORDINATES_SINGLE_PROJECTIVE = 0x62,
+    _,
+};
+
+pub inline fn SYMCRYPT_INTERNAL_NUMOF_COORDINATES(eCoordinates: SYMCRYPT_ECPOINT_COORDINATES) UINT32 {
+    return @as(UINT32, @bitCast(@backingInt(eCoordinates))) & 0xf;
+}
+
+pub const SYMCRYPT_INTERNAL_ECURVE_TYPE = enum(c_int) {
+    SYMCRYPT_INTERNAL_ECURVE_TYPE_NULL = 0,
+    SYMCRYPT_INTERNAL_ECURVE_TYPE_SHORT_WEIERSTRASS = 1,
+    SYMCRYPT_INTERNAL_ECURVE_TYPE_TWISTED_EDWARDS = 2,
+    SYMCRYPT_INTERNAL_ECURVE_TYPE_MONTGOMERY = 3,
+    SYMCRYPT_INTERNAL_ECURVE_TYPE_SHORT_WEIERSTRASS_AM3 = 4,
+    _,
+};
+
+pub const SYMCRYPT_ECURVE_SW_DEF_WINDOW: UINT32 = 6;
+pub const SYMCRYPT_ECURVE_SW_MAX_NPRECOMP_POINTS: usize = 64;
+
+pub const SYMCRYPT_ECURVE_INFO_PRECOMP = extern struct {
+    window: UINT32,
+    nPrecompPoints: UINT32,
+    nRecodedDigits: UINT32,
+    poPrecompPoints: [SYMCRYPT_ECURVE_SW_MAX_NPRECOMP_POINTS]?PSYMCRYPT_ECPOINT,
+};
+
+pub const SYMCRYPT_ECURVE = extern struct {
+    version: UINT32 align(SYMCRYPT_ASYM_ALIGN_VALUE),
+    type: SYMCRYPT_INTERNAL_ECURVE_TYPE,
+    eCoordinates: SYMCRYPT_ECPOINT_COORDINATES,
+
+    FModBitsize: UINT32,
+    FModDigits: UINT32,
+    FModBytesize: UINT32,
+
+    GOrdBitsize: UINT32,
+    GOrdDigits: UINT32,
+    GOrdBytesize: UINT32,
+
+    cbModElement: UINT32,
+    cbAlloc: UINT32,
+
+    cbScratchCommon: UINT32,
+    cbScratchScalar: UINT32,
+    cbScratchScalarMulti: UINT32,
+    cbScratchGetSetValue: UINT32,
+    cbScratchEckey: UINT32,
+
+    coFactorPower: UINT32,
+
+    PrivateKeyDefaultFormat: UINT32,
+    HighBitRestrictionNumOfBits: UINT32,
+    HighBitRestrictionPosition: UINT32,
+    HighBitRestrictionValue: UINT32,
+
+    info: extern union {
+        sw: SYMCRYPT_ECURVE_INFO_PRECOMP,
+    },
+
+    FMod: PSYMCRYPT_MODULUS,
+    GOrd: PSYMCRYPT_MODULUS,
+
+    A: PSYMCRYPT_MODELEMENT,
+    B: PSYMCRYPT_MODELEMENT,
+    G: PSYMCRYPT_ECPOINT,
+    H: PSYMCRYPT_INT,
+
+    magic: SIZE_T,
+};
+pub const PSYMCRYPT_ECURVE = *SYMCRYPT_ECURVE;
+pub const PCSYMCRYPT_ECURVE = *const SYMCRYPT_ECURVE;
+
+pub const SYMCRYPT_ECPOINT = extern struct {
+    normalized: BOOLEAN align(SYMCRYPT_ASYM_ALIGN_VALUE),
+    pCurve: PCSYMCRYPT_ECURVE,
+    magic: SIZE_T,
+};
+pub const PSYMCRYPT_ECPOINT = *SYMCRYPT_ECPOINT;
+pub const PCSYMCRYPT_ECPOINT = *const SYMCRYPT_ECPOINT;
+
+pub const SYMCRYPT_ECKEY = extern struct {
+    fAlgorithmInfo: UINT32 align(SYMCRYPT_ASYM_ALIGN_VALUE),
+    hasPrivateKey: BOOLEAN,
+    pCurve: PCSYMCRYPT_ECURVE,
+
+    poPublicKey: PSYMCRYPT_ECPOINT,
+    piPrivateKey: PSYMCRYPT_INT,
+
+    magic: SIZE_T,
+};
+pub const PSYMCRYPT_ECKEY = *SYMCRYPT_ECKEY;
+pub const PCSYMCRYPT_ECKEY = *const SYMCRYPT_ECKEY;
+
+pub const SYMCRYPT_FLAG_ECPOINT_EQUAL: UINT32 = 0x01;
+pub const SYMCRYPT_FLAG_ECPOINT_NEG_EQUAL: UINT32 = 0x02;
+pub const SYMCRYPT_FLAG_MODRANDOM_ALLOW_ZERO: UINT32 = 0x01;
+pub const SYMCRYPT_FLAG_MODRANDOM_ALLOW_ONE: UINT32 = 0x02;
+pub const SYMCRYPT_FLAG_MODRANDOM_ALLOW_MINUSONE: UINT32 = 0x04;
+pub const SYMCRYPT_FLAG_ECKEY_ECDSA: UINT32 = 0x1000;
+pub const SYMCRYPT_FLAG_ECKEY_ECDH: UINT32 = 0x2000;
+pub const SYMCRYPT_FLAG_ECC_LL_COFACTOR_MUL: UINT32 = 0x20;
+
+pub inline fn SYMCRYPT_CURVE_IS_MONTGOMERY_TYPE(pCurve: PCSYMCRYPT_ECURVE) bool {
+    return pCurve.type == .SYMCRYPT_INTERNAL_ECURVE_TYPE_MONTGOMERY;
+}
+
+pub inline fn SYMCRYPT_INTERNAL_SIZEOF_ECPOINT_EX(cbModElement: UINT32, numOfCoordinates: UINT32) UINT32 {
+    return @as(UINT32, @sizeOf(SYMCRYPT_ECPOINT)) + numOfCoordinates * cbModElement;
+}
+
+pub inline fn SYMCRYPT_INTERNAL_ECPOINT_COORDINATE_OFFSET(pCurve: PCSYMCRYPT_ECURVE, ord: UINT32) usize {
+    return @sizeOf(SYMCRYPT_ECPOINT) + @as(usize, ord) * @as(usize, pCurve.cbModElement);
+}
+
+pub inline fn SYMCRYPT_INTERNAL_ECPOINT_COORDINATE(
+    ord: UINT32,
+    pCurve: PCSYMCRYPT_ECURVE,
+    pEcpoint: anytype,
+) PSYMCRYPT_MODELEMENT {
+    const base_addr = @intFromPtr(pEcpoint) + SYMCRYPT_INTERNAL_ECPOINT_COORDINATE_OFFSET(pCurve, ord);
+    return @ptrFromInt(base_addr);
+}
+
+pub inline fn SYMCRYPT_SCRATCH_BYTES_FOR_GETSET_VALUE_ECURVE_OPERATIONS(pCurve: PCSYMCRYPT_ECURVE) UINT32 {
+    return pCurve.cbScratchGetSetValue;
+}
+
+pub inline fn SYMCRYPT_SCRATCH_BYTES_FOR_COMMON_ECURVE_OPERATIONS(pCurve: PCSYMCRYPT_ECURVE) UINT32 {
+    return pCurve.cbScratchCommon;
+}
+
+pub inline fn SYMCRYPT_SCRATCH_BYTES_FOR_SCALAR_ECURVE_OPERATIONS(pCurve: PCSYMCRYPT_ECURVE, nPoints: UINT32) UINT32 {
+    return pCurve.cbScratchScalar + nPoints * pCurve.cbScratchScalarMulti;
+}
+
+pub inline fn SYMCRYPT_SCRATCH_BYTES_FOR_ECKEY_ECURVE_OPERATIONS(pCurve: PCSYMCRYPT_ECURVE) UINT32 {
+    return pCurve.cbScratchEckey;
+}
+
+pub inline fn SYMCRYPT_INTERNAL_SCRATCH_BYTES_FOR_ECKEY_ECURVE_OPERATIONS(pCurve: PCSYMCRYPT_ECURVE) UINT32 {
+    return pCurve.cbScratchEckey;
+}
+
+pub const SYMCRYPT_ECPOINT_SET_ZERO_FUNC = ?*const fn (
+    pCurve: PCSYMCRYPT_ECURVE,
+    poDst: PSYMCRYPT_ECPOINT,
+    pbScratch: PBYTE,
+    cbScratch: SIZE_T,
+) callconv(SYMCRYPT_CALL) void;
+
+pub const SYMCRYPT_ECPOINT_SET_DISTINGUISHED_FUNC = ?*const fn (
+    pCurve: PCSYMCRYPT_ECURVE,
+    poDst: PSYMCRYPT_ECPOINT,
+    pbScratch: PBYTE,
+    cbScratch: SIZE_T,
+) callconv(SYMCRYPT_CALL) void;
+
+pub const SYMCRYPT_ECPOINT_SET_RANDOM_FUNC = ?*const fn (
+    pCurve: PCSYMCRYPT_ECURVE,
+    piScalar: PSYMCRYPT_INT,
+    poDst: PSYMCRYPT_ECPOINT,
+    pbScratch: PBYTE,
+    cbScratch: SIZE_T,
+) callconv(SYMCRYPT_CALL) void;
+
+pub const SYMCRYPT_ECPOINT_IS_EQUAL_FUNC = ?*const fn (
+    pCurve: PCSYMCRYPT_ECURVE,
+    poSrc1: PCSYMCRYPT_ECPOINT,
+    poSrc2: PCSYMCRYPT_ECPOINT,
+    flags: UINT32,
+    pbScratch: PBYTE,
+    cbScratch: SIZE_T,
+) callconv(SYMCRYPT_CALL) UINT32;
+
+pub const SYMCRYPT_ECPOINT_IS_ZERO_FUNC = ?*const fn (
+    pCurve: PCSYMCRYPT_ECURVE,
+    poSrc: PCSYMCRYPT_ECPOINT,
+    pbScratch: PBYTE,
+    cbScratch: SIZE_T,
+) callconv(SYMCRYPT_CALL) UINT32;
+
+pub const SYMCRYPT_ECPOINT_ON_CURVE_FUNC = ?*const fn (
+    pCurve: PCSYMCRYPT_ECURVE,
+    poSrc: PCSYMCRYPT_ECPOINT,
+    pbScratch: PBYTE,
+    cbScratch: SIZE_T,
+) callconv(SYMCRYPT_CALL) UINT32;
+
+pub const SYMCRYPT_ECPOINT_ADD_FUNC = ?*const fn (
+    pCurve: PCSYMCRYPT_ECURVE,
+    poSrc1: PCSYMCRYPT_ECPOINT,
+    poSrc2: PCSYMCRYPT_ECPOINT,
+    poDst: PSYMCRYPT_ECPOINT,
+    flags: UINT32,
+    pbScratch: PBYTE,
+    cbScratch: SIZE_T,
+) callconv(SYMCRYPT_CALL) void;
+
+pub const SYMCRYPT_ECPOINT_ADD_DIFF_NONZERO_FUNC = ?*const fn (
+    pCurve: PCSYMCRYPT_ECURVE,
+    poSrc1: PCSYMCRYPT_ECPOINT,
+    poSrc2: PCSYMCRYPT_ECPOINT,
+    poDst: PSYMCRYPT_ECPOINT,
+    pbScratch: PBYTE,
+    cbScratch: SIZE_T,
+) callconv(SYMCRYPT_CALL) void;
+
+pub const SYMCRYPT_ECPOINT_DOUBLE_FUNC = ?*const fn (
+    pCurve: PCSYMCRYPT_ECURVE,
+    poSrc: PCSYMCRYPT_ECPOINT,
+    poDst: PSYMCRYPT_ECPOINT,
+    flags: UINT32,
+    pbScratch: PBYTE,
+    cbScratch: SIZE_T,
+) callconv(SYMCRYPT_CALL) void;
+
+pub const SYMCRYPT_ECPOINT_NEGATE_FUNC = ?*const fn (
+    pCurve: PCSYMCRYPT_ECURVE,
+    poSrc: PSYMCRYPT_ECPOINT,
+    mask: UINT32,
+    pbScratch: PBYTE,
+    cbScratch: SIZE_T,
+) callconv(SYMCRYPT_CALL) void;
+
+pub const SYMCRYPT_ECPOINT_SCALAR_MUL_FUNC = ?*const fn (
+    pCurve: PCSYMCRYPT_ECURVE,
+    piScalar: PCSYMCRYPT_INT,
+    poSrc: ?PCSYMCRYPT_ECPOINT,
+    flags: UINT32,
+    poDst: PSYMCRYPT_ECPOINT,
+    pbScratch: PBYTE,
+    cbScratch: SIZE_T,
+) callconv(SYMCRYPT_CALL) SYMCRYPT_ERROR;
+
+pub const SYMCRYPT_ECPOINT_MULTI_SCALAR_MUL_FUNC = ?*const fn (
+    pCurve: PCSYMCRYPT_ECURVE,
+    piTableScalars: [*]const PCSYMCRYPT_INT,
+    poTablePoints: [*]const ?PCSYMCRYPT_ECPOINT,
+    nPoints: UINT32,
+    flags: UINT32,
+    poDst: PSYMCRYPT_ECPOINT,
+    pbScratch: PBYTE,
+    cbScratch: SIZE_T,
+) callconv(SYMCRYPT_CALL) SYMCRYPT_ERROR;
+
+pub const SYMCRYPT_ECURVE_FILL_SCRATCH_SPACES_FUNC = ?*const fn (
+    pCurve: PSYMCRYPT_ECURVE,
+) callconv(SYMCRYPT_CALL) void;
+
+pub const SYMCRYPT_ECURVE_FUNCTIONS = extern struct {
+    setZeroFunc: SYMCRYPT_ECPOINT_SET_ZERO_FUNC,
+    setDistinguishedFunc: SYMCRYPT_ECPOINT_SET_DISTINGUISHED_FUNC,
+    setRandomFunc: SYMCRYPT_ECPOINT_SET_RANDOM_FUNC,
+    isEqualFunc: SYMCRYPT_ECPOINT_IS_EQUAL_FUNC,
+    isZeroFunc: SYMCRYPT_ECPOINT_IS_ZERO_FUNC,
+    onCurveFunc: SYMCRYPT_ECPOINT_ON_CURVE_FUNC,
+    addFunc: SYMCRYPT_ECPOINT_ADD_FUNC,
+    addDiffFunc: SYMCRYPT_ECPOINT_ADD_DIFF_NONZERO_FUNC,
+    doubleFunc: SYMCRYPT_ECPOINT_DOUBLE_FUNC,
+    negateFunc: SYMCRYPT_ECPOINT_NEGATE_FUNC,
+    scalarMulFunc: SYMCRYPT_ECPOINT_SCALAR_MUL_FUNC,
+    multiScalarMulFunc: SYMCRYPT_ECPOINT_MULTI_SCALAR_MUL_FUNC,
+    fillScratchSpacesFunc: SYMCRYPT_ECURVE_FILL_SCRATCH_SPACES_FUNC,
+    slack: [3]PVOID = .{ null, null, null },
+};

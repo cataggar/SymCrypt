@@ -105,6 +105,12 @@ pub const aes_zmm = @import("aes_zmm.zig");
 pub const rsakey = @import("rsakey.zig");
 pub const rsa_padding = @import("rsa_padding.zig");
 pub const rsa_enc = @import("rsa_enc.zig");
+pub const ec_internal_curve_params = @import("ec_internal_curve_params.zig");
+pub const ec_internal_curves = @import("ec_internal_curves.zig");
+pub const ec_dispatch = @import("ec_dispatch.zig");
+pub const ecurve = @import("ecurve.zig");
+pub const ecpoint = @import("ecpoint.zig");
+pub const eckey = @import("eckey.zig");
 
 comptime {
     _ = build_options;
@@ -203,6 +209,12 @@ comptime {
     _ = rsakey;
     _ = rsa_padding;
     _ = rsa_enc;
+    _ = ec_internal_curve_params;
+    _ = ec_internal_curves;
+    _ = ec_dispatch;
+    _ = ecurve;
+    _ = ecpoint;
+    _ = eckey;
 
     // Compile-time sanity checks on core types, masks, rotations, and magic constants.
     std.debug.assert(@sizeOf(types.SYMCRYPT_RSA_PARAMS) == 16);
@@ -210,6 +222,18 @@ comptime {
     std.debug.assert(@offsetOf(types.SYMCRYPT_RSAKEY, "au64PubExp") == 56);
     std.debug.assert(@offsetOf(types.SYMCRYPT_RSAKEY, "pbPrimes") == 64);
     std.debug.assert(@offsetOf(types.SYMCRYPT_RSAKEY, "magic") == 64 + 15 * @sizeOf(usize));
+    std.debug.assert(@sizeOf(types.SYMCRYPT_ECURVE_PARAMS) == 28);
+    std.debug.assert(@sizeOf(types.SYMCRYPT_ECURVE_PARAMS_V2_EXTENSION) == 16);
+    std.debug.assert(@alignOf(types.SYMCRYPT_ECURVE) == types.SYMCRYPT_ASYM_ALIGN_VALUE);
+    std.debug.assert(@alignOf(types.SYMCRYPT_ECPOINT) == types.SYMCRYPT_ASYM_ALIGN_VALUE);
+    std.debug.assert(@alignOf(types.SYMCRYPT_ECKEY) == types.SYMCRYPT_ASYM_ALIGN_VALUE);
+    std.debug.assert(@sizeOf(types.SYMCRYPT_ECURVE_FUNCTIONS) == 16 * @sizeOf(usize));
+    std.debug.assert(@offsetOf(types.SYMCRYPT_ECPOINT, "pCurve") == @sizeOf(usize));
+    std.debug.assert(@offsetOf(types.SYMCRYPT_ECPOINT, "magic") == 2 * @sizeOf(usize));
+    std.debug.assert(@offsetOf(types.SYMCRYPT_ECKEY, "pCurve") == 8);
+    std.debug.assert(@offsetOf(types.SYMCRYPT_ECKEY, "poPublicKey") == 8 + @sizeOf(usize));
+    std.debug.assert(@offsetOf(types.SYMCRYPT_ECKEY, "piPrivateKey") == 8 + 2 * @sizeOf(usize));
+    std.debug.assert(@offsetOf(types.SYMCRYPT_ECKEY, "magic") == 8 + 3 * @sizeOf(usize));
     std.debug.assert(@alignOf(types.SYMCRYPT_INT) == types.SYMCRYPT_ASYM_ALIGN_VALUE);
     std.debug.assert(@alignOf(types.SYMCRYPT_DIVISOR) == types.SYMCRYPT_ASYM_ALIGN_VALUE);
     std.debug.assert(@alignOf(types.SYMCRYPT_MODULUS) == types.SYMCRYPT_ASYM_ALIGN_VALUE);
