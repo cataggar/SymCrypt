@@ -562,10 +562,10 @@ inline fn sha256AppendBlocksShani(
     // DCBA = (D, C, B, A), HGFE = (H, G, F, E)
     const dcba_init = mmLoaduSi128(@ptrCast(&pChain.H[0]));
     const hgfe_init = mmLoaduSi128(@ptrCast(&pChain.H[4]));
-    const cdba = mmShuffleEpi32(dcba_init, 0xb1); // (C, D, A, B)
-    const ghef = mmShuffleEpi32(hgfe_init, 0xb1); // (G, H, E, F)
-    var abef = mmAlignrEpi8(cdba, ghef, 8); // (A, B, E, F)
-    var cdgh = mmUnpackhiEpi64(ghef, cdba); // (C, D, G, H)
+    const feba_init = mmUnpackloEpi64(dcba_init, hgfe_init); // (F, E, B, A)
+    const hgdc_init = mmUnpackhiEpi64(dcba_init, hgfe_init); // (H, G, D, C)
+    var abef = mmShuffleEpi32(feba_init, 0x1b); // (A, B, E, F)
+    var cdgh = mmShuffleEpi32(hgdc_init, 0x1b); // (C, D, G, H)
 
     while (cbData >= 64) {
         const abef_save = abef;
