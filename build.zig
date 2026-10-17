@@ -258,24 +258,33 @@ pub fn build(b: *std.Build) void {
         "Enable FIPS self-tests and entropy definitions (default: true)",
     ) orelse true;
 
+    const arch = target.result.cpu.arch;
+    const os_tag = target.result.os.tag;
+    const default_build_tests = os_tag == .linux or
+        (os_tag == .macos and b.graph.host.result.os.tag == .macos);
     const build_tests = b.option(
         bool,
         "unit-tests",
-        "Build SymCrypt unit test executable (default: true)",
-    ) orelse true;
+        "Build SymCrypt unit test executable (default: true on Linux and native macOS)",
+    ) orelse default_build_tests;
 
-    const generated_headers = generateHeaders(b, build_tests and target.result.os.tag != .windows);
+    const effective_use_asm = use_asm and switch (os_tag) {
+        .linux => arch == .x86_64 or arch == .aarch64 or arch == .arm,
+        .macos => arch == .aarch64,
+        else => false,
+    };
+
+    const generated_headers = generateHeaders(b, os_tag == .windows, build_tests and os_tag != .windows);
 
     const common_mod = b.createModule(.{
         .target = target,
         .optimize = optimize,
         .link_libc = true,
-        .pic = true,
+        .pic = if (os_tag == .windows) null else true,
     });
-    configureModuleCommon(b, common_mod, generated_headers, target, optimize, use_asm, fips_build);
-    addSymCryptCommonSources(b, common_mod, target, optimize, use_asm);
+    configureModuleCommon(b, common_mod, generated_headers, target, optimize, effective_use_asm, fips_build);
+    addSymCryptCommonSources(b, common_mod, target, optimize, effective_use_asm);
 
-    const os_tag = target.result.os.tag;
     if (os_tag == .windows) {
         common_mod.addCSourceFile(.{
             .file = b.path("lib/env_windowsUserModeWin8_1.c"),
@@ -303,9 +312,9 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
         .link_libc = true,
-        .pic = true,
+        .pic = if (os_tag == .windows) null else true,
     });
-    configureModuleCommon(b, plus_mod, generated_headers, target, optimize, use_asm, fips_build);
+    configureModuleCommon(b, plus_mod, generated_headers, target, optimize, effective_use_asm, fips_build);
     plus_mod.addIncludePath(b.path("inc/symcrypt_plus"));
     plus_mod.addIncludePath(b.path("lib_plus"));
     plus_mod.addCSourceFiles(.{
@@ -330,7 +339,7 @@ pub fn build(b: *std.Build) void {
             .link_libcpp = true,
             .pic = true,
         });
-        configureModuleCommon(b, unittest_mod, generated_headers, target, optimize, use_asm, fips_build);
+        configureModuleCommon(b, unittest_mod, generated_headers, target, optimize, effective_use_asm, fips_build);
         unittest_mod.addIncludePath(b.path("inc/symcrypt_plus"));
         unittest_mod.addIncludePath(b.path("lib_plus"));
         unittest_mod.addIncludePath(b.path("unittest/inc"));
@@ -351,7 +360,6 @@ pub fn build(b: *std.Build) void {
             .flags = cxx_flags,
         });
 
-        const arch = target.result.cpu.arch;
         const main_extra_flags: []const []const u8 = if (arch == .x86_64 or arch == .x86)
             targetFeatureFlags(&.{ "+sse4.1", "+sse4.2", "+avx", "+avx2" })
         else
@@ -361,7 +369,7 @@ pub fn build(b: *std.Build) void {
             .flags = getCxxFlags(b, target, optimize, main_extra_flags) catch @panic("OOM"),
         });
 
-        if (use_asm and arch == .x86_64) {
+        if (effective_use_asm and arch == .x86_64) {
             const asm_flags = getAsmFlags(b, target, optimize) catch @panic("OOM");
             const saveymm_s = generated_headers.addCopyFile(b.path("unittest/lib/amd64/saveymm-gas.asm"), "saveymm-gas.S");
             const savezmm_s = generated_headers.addCopyFile(b.path("unittest/lib/amd64/savezmm-gas.asm"), "savezmm-gas.S");
@@ -385,16 +393,72 @@ pub fn build(b: *std.Build) void {
         b.installArtifact(unittest_exe);
 
         const run_unittest = b.addRunArtifact(unittest_exe);
+        const default_test_args: []const []const u8 = if (optimize == .debug)
+            &.{
+                "noperftests",
+                "+Md5",
+                "+Sha256",
+                "+Sha3",
+                "+HmacSha256",
+                "+Aes",
+                "+XtsAes",
+                "+AesKw",
+                "+AesCmac",
+                "+AesCtrDrbg",
+                "+ChaCha20",
+                "+Poly1305",
+                "+Pbkdf2",
+                "+Hkdf",
+                "+TlsPrf",
+                "+Hpke",
+            }
+        else
+            &.{
+                "noperftests",
+                "+Md5",
+                "+Sha256",
+                "+Sha3",
+                "+HmacSha256",
+                "+Aes",
+                "+XtsAes",
+                "+AesKw",
+                "+AesCmac",
+                "+AesCtrDrbg",
+                "+ChaCha20",
+                "+Poly1305",
+                "+Pbkdf2",
+                "+Hkdf",
+                "+TlsPrf",
+                "+Ecdsa",
+                "+Ecdh",
+                "+MlKem",
+                "+MlDsa",
+                "+Hpke",
+            };
         if (b.option([]const []const u8, "test-args", "Arguments forwarded to symcryptunittest")) |args| {
             run_unittest.addArgs(args);
+        } else {
+            run_unittest.addArgs(default_test_args);
         }
         const test_step = b.step("test", "Run SymCrypt unit tests");
         test_step.dependOn(&run_unittest.step);
     }
 }
 
-fn generateHeaders(b: *std.Build, include_kat_headers: bool) *std.Build.Step.WriteFile {
+fn generateHeaders(b: *std.Build, is_windows: bool, include_kat_headers: bool) *std.Build.Step.WriteFile {
     const wf = b.addWriteFiles();
+
+    if (is_windows) {
+        _ = wf.add("Windows.h",
+            \\#pragma once
+            \\#define __C_ASSERT__ __WINNT_C_ASSERT__
+            \\#include <windows.h>
+            \\#undef __C_ASSERT__
+            \\#undef C_ASSERT
+            \\#undef FORCEINLINE
+            \\
+        );
+    }
 
     const shared_inc = std.fmt.allocPrint(
         b.allocator,
@@ -667,15 +731,18 @@ fn appendCommonFlags(
         "-Wno-deprecated-declarations",
         "-Wno-deprecated",
         "-Wno-multichar",
-        "-fno-plt",
         "-fno-builtin-bcmp",
         "-fms-extensions",
         "-fno-unroll-loops",
-        "-fno-sanitize=alignment,null",
+        "-fno-sanitize=alignment,null,object-size,function",
+        "-fno-sanitize-trap=alignment,null,object-size,function",
     });
 
     const arch = target.result.cpu.arch;
     const os_tag = target.result.os.tag;
+    if (os_tag != .macos and os_tag != .windows) {
+        try list.append(gpa, "-fno-plt");
+    }
     if (arch == .x86_64 or arch == .x86) {
         try list.appendSlice(gpa, targetFeatureFlags(&.{
             "+sse2",

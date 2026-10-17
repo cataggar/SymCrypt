@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [zig]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  fmt:
+    name: Format Check
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v6
+      - uses: cataggar/ghr/actions/install@c4be68b52d67d7acd2a7fe6c1e5f126e1754176e # v0.8.1
+        with:
+          apps: cataggar/zig@v0.17.0
+          minisign-keys: |
+            cataggar/zig=RWSGOq2NVecA2UPNdBUZykf1CCb147pkmdtYxgb3Ti+JO/wCYvhbAb/U
+      - run: zig fmt --check build.zig build.zig.zon
+
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v6
+      - uses: cataggar/ghr/actions/install@c4be68b52d67d7acd2a7fe6c1e5f126e1754176e # v0.8.1
+        with:
+          apps: cataggar/zig@v0.17.0
+          minisign-keys: |
+            cataggar/zig=RWSGOq2NVecA2UPNdBUZykf1CCb147pkmdtYxgb3Ti+JO/wCYvhbAb/U
+      - name: Build and test (Debug)
+        run: zig build test
+      - name: Build and test (ReleaseSafe)
+        run: zig build test -Doptimize=ReleaseSafe
+
+  cross-compile:
+    name: Cross-compile (${{ matrix.target }})
+    runs-on: ubuntu-24.04-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - x86_64-linux-gnu
+          - aarch64-linux-gnu
+          - aarch64-macos
+          - x86_64-macos
+          - x86_64-windows-gnu
+          - aarch64-windows-gnu
+    steps:
+      - uses: actions/checkout@v6
+      - uses: cataggar/ghr/actions/install@c4be68b52d67d7acd2a7fe6c1e5f126e1754176e # v0.8.1
+        with:
+          apps: cataggar/zig@v0.17.0
+          minisign-keys: |
+            cataggar/zig=RWSGOq2NVecA2UPNdBUZykf1CCb147pkmdtYxgb3Ti+JO/wCYvhbAb/U
+      - name: Cross-compile ${{ matrix.target }}
+        run: zig build -Dtarget=${{ matrix.target }}

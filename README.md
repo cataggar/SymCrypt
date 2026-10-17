@@ -31,16 +31,18 @@ Azure DevOps repository. If you are external to Microsoft, you can ignore this s
 the unit tests and does not change the behavior of the SymCrypt product code.
 
 # Building
-The easiest way to get started building SymCrypt is to use the Python build script, `scripts/build.py`. You
-can run it with the `--help` argument to get help about which arguments are required and what each one does. For
-detailed build instructions, including alternative ways to build, see [BUILD.md](BUILD.md).
+SymCrypt is built using the [Zig](https://ziglang.org/) build system (`zig build`). Run `zig build --help` to see
+available build options. For detailed build and cross-compilation instructions, see [BUILD.md](BUILD.md).
 
 # Testing
-The SymCrypt unit test runs extensive functional tests on the SymCrypt library. On Windows it also compares results
-against on other implementations such as the Windows APIs CNG and CAPI, and the older crypto libraries rsa32 and
-msbignum, if they are available. It also provides detailed performance information.
+The SymCrypt unit test runs extensive functional tests on the SymCrypt library and provides detailed performance
+information.
 
-After a successful build, you can use the `scripts/test.py` helper script to run the unit tests.
+To build and run the unit test suite, run:
+
+```bash
+zig build test
+```
 
 # Versioning and Servicing
 As of version 101.0.0, SymCrypt uses the version scheme defined by the
