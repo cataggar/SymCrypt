@@ -276,12 +276,19 @@ pub fn build(b: *std.Build) void {
 
     const generated_headers = generateHeaders(b, os_tag == .windows, build_tests and os_tag != .windows);
 
+    const build_options = b.addOptions();
+    build_options.addOption(bool, "use_asm", effective_use_asm);
+    build_options.addOption(bool, "fips_build", fips_build);
+    build_options.addOption(std.SemanticVersion, "symcrypt_version", symcrypt_version);
+
     const common_mod = b.createModule(.{
+        .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,
         .pic = if (os_tag == .windows) null else true,
     });
+    common_mod.addOptions("build_options", build_options);
     configureModuleCommon(b, common_mod, generated_headers, target, optimize, effective_use_asm, fips_build);
     addSymCryptCommonSources(b, common_mod, target, optimize, effective_use_asm);
 
