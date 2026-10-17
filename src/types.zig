@@ -304,13 +304,22 @@ pub const SYMCRYPT_DLGROUP_FIPS = enum(c_int) {
     SYMCRYPT_DLGROUP_FIPS_NONE = 0,
     SYMCRYPT_DLGROUP_FIPS_186_2 = 1,
     SYMCRYPT_DLGROUP_FIPS_186_3 = 2,
+    SYMCRYPT_DLGROUP_FIPS_SP800_56A = 3,
     _,
 };
+pub const SYMCRYPT_DLGROUP_FIPS_LATEST: SYMCRYPT_DLGROUP_FIPS = .SYMCRYPT_DLGROUP_FIPS_186_3;
 
 pub const SYMCRYPT_DLGROUP_DH_SAFEPRIMETYPE = enum(c_int) {
     SYMCRYPT_DLGROUP_DH_SAFEPRIMETYPE_NONE = 0,
     SYMCRYPT_DLGROUP_DH_SAFEPRIMETYPE_IKE_3526 = 1,
     SYMCRYPT_DLGROUP_DH_SAFEPRIMETYPE_TLS_7919 = 2,
+    _,
+};
+pub const SYMCRYPT_DLGROUP_DH_SAFEPRIME_TYPE = SYMCRYPT_DLGROUP_DH_SAFEPRIMETYPE;
+
+pub const SYMCRYPT_802_11_SAE_GROUP = enum(c_int) {
+    SYMCRYPT_SAE_GROUP_19 = 19,
+    SYMCRYPT_SAE_GROUP_20 = 20,
     _,
 };
 
@@ -590,6 +599,8 @@ pub const SYMCRYPT_HASH = extern struct {
 };
 pub const PSYMCRYPT_HASH = *SYMCRYPT_HASH;
 pub const PCSYMCRYPT_HASH = *const SYMCRYPT_HASH;
+pub const PPCSYMCRYPT_HASH = *?PCSYMCRYPT_HASH;
+pub const SYMCRYPT_SHA1_RESULT_SIZE: usize = 20;
 
 pub const PSYMCRYPT_MAC_EXPAND_KEY = *const fn (pExpandedKey: PVOID, pbKey: PCBYTE, cbKey: SIZE_T) callconv(SYMCRYPT_CALL) SYMCRYPT_ERROR;
 pub const PSYMCRYPT_MAC_INIT = *const fn (pState: PVOID, pExpandedKey: PCVOID) callconv(SYMCRYPT_CALL) void;
@@ -1254,6 +1265,113 @@ pub const SYMCRYPT_XTS_AES_EXPANDED_KEY = extern struct {
 pub const PSYMCRYPT_XTS_AES_EXPANDED_KEY = *SYMCRYPT_XTS_AES_EXPANDED_KEY;
 pub const PCSYMCRYPT_XTS_AES_EXPANDED_KEY = *const SYMCRYPT_XTS_AES_EXPANDED_KEY;
 
+// ==============================================================================================
+// Discrete Logarithm (DLGROUP, DLKEY), DH, DSA, and IEEE 802.11 SAE Structures
+// ==============================================================================================
+
+pub const SYMCRYPT_DLGROUP_MIN_BITSIZE_P: u32 = 32;
+pub const SYMCRYPT_DLGROUP_MIN_BITSIZE_Q: u32 = 31;
+
+pub const SYMCRYPT_FLAG_DLKEY_GEN_MODP: u32 = 0x01;
+pub const SYMCRYPT_FLAG_DLKEY_DSA: u32 = 0x1000;
+pub const SYMCRYPT_FLAG_DLKEY_DH: u32 = 0x2000;
+pub const SYMCRYPT_FLAG_DSA_NO_TRUNCATION: u32 = 0x01;
+
+pub const SYMCRYPT_DH_SAFEPRIME_GROUP_COUNT: usize = 10;
+
+pub const SYMCRYPT_DLGROUP_DH_SAFEPRIME_PARAMS = extern struct {
+    eDhSafePrimeType: SYMCRYPT_DLGROUP_DH_SAFEPRIMETYPE,
+    pcbPrimeP: PCBYTE,
+    nBitsOfP: UINT32,
+    nMinBitsPriv: UINT32,
+    nDefaultBitsPriv: UINT32,
+};
+pub const PSYMCRYPT_DLGROUP_DH_SAFEPRIME_PARAMS = *SYMCRYPT_DLGROUP_DH_SAFEPRIME_PARAMS;
+pub const PCSYMCRYPT_DLGROUP_DH_SAFEPRIME_PARAMS = *const SYMCRYPT_DLGROUP_DH_SAFEPRIME_PARAMS;
+
+pub const SYMCRYPT_DLGROUP = extern struct {
+    cbTotalSize: UINT32 align(SYMCRYPT_ASYM_ALIGN_VALUE),
+    fHasPrimeQ: BOOLEAN,
+    nBitsOfP: UINT32,
+    cbPrimeP: UINT32,
+    nDigitsOfP: UINT32,
+    nMaxBitsOfP: UINT32,
+    nBitsOfQ: UINT32,
+    cbPrimeQ: UINT32,
+    nDigitsOfQ: UINT32,
+    nMaxBitsOfQ: UINT32,
+    isSafePrimeGroup: BOOLEAN,
+    nMinBitsPriv: UINT32,
+    nDefaultBitsPriv: UINT32,
+    nBitsOfSeed: UINT32,
+    cbSeed: UINT32,
+    eFipsStandard: SYMCRYPT_DLGROUP_FIPS,
+    pHashAlgorithm: ?PCSYMCRYPT_HASH,
+    dwGenCounter: UINT32,
+    bIndexGenG: BYTE,
+    pbQ: PBYTE,
+    pmP: PSYMCRYPT_MODULUS,
+    pmQ: ?PSYMCRYPT_MODULUS,
+    peG: PSYMCRYPT_MODELEMENT,
+    pbSeed: ?PBYTE,
+    magic: SIZE_T,
+};
+pub const PSYMCRYPT_DLGROUP = *SYMCRYPT_DLGROUP;
+pub const PCSYMCRYPT_DLGROUP = *const SYMCRYPT_DLGROUP;
+
+pub inline fn SYMCRYPT_FDEF_SIZEOF_DLGROUP_FROM_BITS(nBitsOfP: u32, nBitsOfQ_in: u32) u32 {
+    const nBitsOfQ: u32 = if (nBitsOfQ_in == 0) nBitsOfP - 1 else nBitsOfQ_in;
+    return @sizeOf(SYMCRYPT_DLGROUP) +
+        SYMCRYPT_INTERNAL_SIZEOF_MODULUS_FROM_BITS(nBitsOfP) +
+        SYMCRYPT_INTERNAL_SIZEOF_MODULUS_FROM_BITS(nBitsOfQ) +
+        SYMCRYPT_INTERNAL_SIZEOF_MODELEMENT_FROM_BITS(nBitsOfP) +
+        (((nBitsOfP + 7) / 8 + SYMCRYPT_ASYM_ALIGN_VALUE - 1) & ~@as(u32, SYMCRYPT_ASYM_ALIGN_VALUE - 1));
+}
+
+pub inline fn SYMCRYPT_INTERNAL_SIZEOF_DLGROUP_FROM_BITS(nBitsOfP: u32, nBitsOfQ: u32) u32 {
+    return SYMCRYPT_FDEF_SIZEOF_DLGROUP_FROM_BITS(nBitsOfP, nBitsOfQ);
+}
+
+pub const SYMCRYPT_DLKEY = extern struct {
+    fAlgorithmInfo: UINT32 align(SYMCRYPT_ASYM_ALIGN_VALUE),
+    fHasPrivateKey: BOOLEAN,
+    fPrivateModQ: BOOLEAN,
+    nBitsPriv: UINT32,
+    pDlgroup: PCSYMCRYPT_DLGROUP,
+    pbPrivate: PBYTE,
+    pePublicKey: PSYMCRYPT_MODELEMENT,
+    piPrivateKey: ?PSYMCRYPT_INT,
+    magic: SIZE_T,
+};
+pub const PSYMCRYPT_DLKEY = *SYMCRYPT_DLKEY;
+pub const PCSYMCRYPT_DLKEY = *const SYMCRYPT_DLKEY;
+
+pub inline fn SYMCRYPT_FDEF_SIZEOF_DLKEY_FROM_BITS(nBitsOfP: u32, nBitsOfPriv: u32) u32 {
+    return @sizeOf(SYMCRYPT_DLKEY) +
+        SYMCRYPT_INTERNAL_SIZEOF_MODELEMENT_FROM_BITS(nBitsOfP) +
+        SYMCRYPT_INTERNAL_SIZEOF_INT_FROM_BITS(nBitsOfPriv);
+}
+
+pub inline fn SYMCRYPT_INTERNAL_SIZEOF_DLKEY_FROM_BITS(nBitsOfP: u32, nBitsOfPriv: u32) u32 {
+    return SYMCRYPT_FDEF_SIZEOF_DLKEY_FROM_BITS(nBitsOfP, nBitsOfPriv);
+}
+
+pub const SYMCRYPT_SAE_MAX_MOD_SIZE_BITS: UINT32 = 384;
+pub const SYMCRYPT_SAE_MAX_MOD_SIZE_BYTES: UINT32 = (SYMCRYPT_SAE_MAX_MOD_SIZE_BITS + 7) / 8;
+pub const SYMCRYPT_SAE_MAX_EC_POINT_SIZE_BYTES: UINT32 = 2 * SYMCRYPT_SAE_MAX_MOD_SIZE_BYTES;
+pub const SYMCRYPT_SAE_MAX_HMAC_OUTPUT_SIZE_BYTES: UINT32 = (384 + 7) / 8;
+
+pub const SYMCRYPT_802_11_SAE_CUSTOM_STATE = extern struct {
+    pCurve: ?PSYMCRYPT_ECURVE align(SYMCRYPT_ALIGN_VALUE),
+    macAlgorithm: ?PCSYMCRYPT_MAC,
+    peRand: ?PSYMCRYPT_MODELEMENT,
+    peMask: ?PSYMCRYPT_MODELEMENT,
+    poPWE: ?PSYMCRYPT_ECPOINT,
+    counter: BYTE,
+};
+pub const PSYMCRYPT_802_11_SAE_CUSTOM_STATE = *SYMCRYPT_802_11_SAE_CUSTOM_STATE;
+pub const PCSYMCRYPT_802_11_SAE_CUSTOM_STATE = *const SYMCRYPT_802_11_SAE_CUSTOM_STATE;
+
 pub const SYMCRYPT_RSAKEY = extern struct {
     fAlgorithmInfo: UINT32 align(SYMCRYPT_ASYM_ALIGN_VALUE),
     cbTotalSize: UINT32,
@@ -1314,6 +1432,8 @@ pub inline fn SYMCRYPT_INTERNAL_SCRATCH_BYTES_FOR_RSA_PSS(hashAlgorithm: PCSYMCR
 
 pub const SYMCRYPT_ECURVE_GEN_ALG_ID = enum(c_int) {
     SYMCRYPT_ECURVE_GEN_ALG_ID_NULL = 0,
+    SYMCRYPT_ECURVE_GEN_ALG_ID_SHA1_GENERAL,
+    SYMCRYPT_ECURVE_GEN_ALG_ID_SHA1_NIST,
     _,
 };
 

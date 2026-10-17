@@ -117,6 +117,12 @@ pub const ec_twisted_edwards = @import("ec_twisted_edwards.zig");
 pub const ec_mul = @import("ec_mul.zig");
 pub const ec_dh = @import("ec_dh.zig");
 pub const ec_dsa = @import("ec_dsa.zig");
+pub const dl_internal_groups = @import("dl_internal_groups.zig");
+pub const dlgroup = @import("dlgroup.zig");
+pub const dlkey = @import("dlkey.zig");
+pub const dh = @import("dh.zig");
+pub const dsa = @import("dsa.zig");
+pub const ieee802_11_sae_custom = @import("ieee802_11_sae_custom.zig");
 
 comptime {
     _ = build_options;
@@ -227,6 +233,12 @@ comptime {
     _ = ec_mul;
     _ = ec_dh;
     _ = ec_dsa;
+    _ = dl_internal_groups;
+    _ = dlgroup;
+    _ = dlkey;
+    _ = dh;
+    _ = dsa;
+    _ = ieee802_11_sae_custom;
 
     // Compile-time sanity checks on core types, masks, rotations, and magic constants.
     std.debug.assert(@sizeOf(types.SYMCRYPT_RSA_PARAMS) == 16);
@@ -239,6 +251,11 @@ comptime {
     std.debug.assert(@alignOf(types.SYMCRYPT_ECURVE) == types.SYMCRYPT_ASYM_ALIGN_VALUE);
     std.debug.assert(@alignOf(types.SYMCRYPT_ECPOINT) == types.SYMCRYPT_ASYM_ALIGN_VALUE);
     std.debug.assert(@alignOf(types.SYMCRYPT_ECKEY) == types.SYMCRYPT_ASYM_ALIGN_VALUE);
+    std.debug.assert(@alignOf(types.SYMCRYPT_DLGROUP) == types.SYMCRYPT_ASYM_ALIGN_VALUE);
+    std.debug.assert(@alignOf(types.SYMCRYPT_DLKEY) == types.SYMCRYPT_ASYM_ALIGN_VALUE);
+    std.debug.assert(@alignOf(types.SYMCRYPT_802_11_SAE_CUSTOM_STATE) == types.SYMCRYPT_ALIGN_VALUE);
+    std.debug.assert(@offsetOf(types.SYMCRYPT_DLKEY, "pDlgroup") == 16);
+    std.debug.assert(@offsetOf(types.SYMCRYPT_ECURVE, "info") == 88);
     std.debug.assert(@sizeOf(types.SYMCRYPT_ECURVE_FUNCTIONS) == 16 * @sizeOf(usize));
     std.debug.assert(@offsetOf(types.SYMCRYPT_ECPOINT, "pCurve") == @sizeOf(usize));
     std.debug.assert(@offsetOf(types.SYMCRYPT_ECPOINT, "magic") == 2 * @sizeOf(usize));

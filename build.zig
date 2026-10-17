@@ -6,13 +6,7 @@ const symcrypt_version = std.SemanticVersion{
     .patch = 0,
 };
 
-const common_c_sources: []const []const u8 = &.{
-    "dh.c",
-    "dl_internal_groups.c",
-    "dlgroup.c",
-    "dlkey.c",
-    "dsa.c",
-};
+const common_c_sources: []const []const u8 = &.{};
 
 const x86_specialized_c_sources: []const []const u8 = &.{};
 
@@ -357,13 +351,6 @@ fn addSymCryptCommonSources(
 
     const arch = target.result.cpu.arch;
     const os_tag = target.result.os.tag;
-
-    if (os_tag == .windows) {
-        mod.addCSourceFile(.{
-            .file = b.path("lib/IEEE802_11SaeCustom.c"),
-            .flags = base_c_flags,
-        });
-    }
 
     if (use_asm and os_tag != .windows) {
         const assembler = if (os_tag == .macos) "gas-macho" else "gas";
