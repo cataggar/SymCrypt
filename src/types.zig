@@ -48,7 +48,7 @@ else if (CPU_ARM)
 else
     16;
 
-pub const SYMCRYPT_FDEF_DIGIT_SIZE: usize = if (CPU_AMD64)
+pub const SYMCRYPT_FDEF_DIGIT_SIZE: u32 = if (CPU_AMD64)
     64
 else if (CPU_ARM64)
     32
@@ -823,3 +823,268 @@ pub const SYMCRYPT_SESSION = extern struct {
 };
 pub const PSYMCRYPT_SESSION = *SYMCRYPT_SESSION;
 pub const PCSYMCRYPT_SESSION = *const SYMCRYPT_SESSION;
+
+// ==============================================================================================
+// Asymmetric / BigInt (FDEF) Constants & Types
+// ==============================================================================================
+
+pub const SYMCRYPT_INT_MAX_BITS: u32 = 1 << 20;
+
+pub const SYMCRYPT_FDEF_DIGIT_BITS: u32 = 8 * SYMCRYPT_FDEF_DIGIT_SIZE;
+pub const SYMCRYPT_FDEF_DIGIT_NUINT32: u32 = SYMCRYPT_FDEF_DIGIT_SIZE / 4;
+pub const SYMCRYPT_FDEF_DIGIT_NUINT64: u32 = SYMCRYPT_FDEF_DIGIT_SIZE / 8;
+
+pub inline fn SYMCRYPT_FDEF_DIGITS_FROM_BITS(bits: u32) u32 {
+    return (bits / SYMCRYPT_FDEF_DIGIT_BITS) +
+        (((bits & (SYMCRYPT_FDEF_DIGIT_BITS - 1)) + (SYMCRYPT_FDEF_DIGIT_BITS - 1)) / SYMCRYPT_FDEF_DIGIT_BITS);
+}
+
+pub const SYMCRYPT_FDEF_UPB_DIGITS: u32 = SYMCRYPT_FDEF_DIGITS_FROM_BITS(SYMCRYPT_INT_MAX_BITS);
+
+pub const SYMCRYPT_FLAG_DATA_PUBLIC: u32 = 0x00010000;
+pub const SYMCRYPT_FLAG_MODULUS_PARITY_PUBLIC: u32 = 0x00020000;
+pub const SYMCRYPT_FLAG_MODULUS_INV_PUBLIC: u32 = 0x00040000;
+pub const SYMCRYPT_FLAG_MODULUS_PRIME: u32 = 0x00080000;
+pub const SYMCRYPT_FLAG_MODULUS_ADDITIVE_ONLY: u32 = 0x00010000;
+
+pub const SYMCRYPT_MODULUS_FEATURE_MONTGOMERY: u32 = 1;
+pub const SYMCRYPT_MODULUS_FEATURE_NISTP384: u32 = 8;
+
+pub const SYMCRYPT_INT_FDEF = extern struct {
+    uint32: [1]UINT32,
+};
+
+pub const SYMCRYPT_INT_TI = extern union {
+    fdef: SYMCRYPT_INT_FDEF,
+};
+
+pub const SYMCRYPT_INT = extern struct {
+    type: UINT32 align(SYMCRYPT_ASYM_ALIGN_VALUE),
+    nDigits: UINT32,
+    cbSize: UINT32,
+    magic: SIZE_T,
+    ti: SYMCRYPT_INT_TI align(SYMCRYPT_ASYM_ALIGN_VALUE),
+};
+pub const PSYMCRYPT_INT = *SYMCRYPT_INT;
+pub const PCSYMCRYPT_INT = *const SYMCRYPT_INT;
+
+pub inline fn SYMCRYPT_FDEF_INT_PUINT32(p: PSYMCRYPT_INT) PUINT32 {
+    return @ptrCast(&p.ti.fdef.uint32[0]);
+}
+
+pub inline fn SYMCRYPT_FDEF_INT_PCUINT32(p: PCSYMCRYPT_INT) PCUINT32 {
+    return @ptrCast(&p.ti.fdef.uint32[0]);
+}
+
+pub const SYMCRYPT_DIVISOR_FDEF = extern struct {
+    W: UINT64,
+};
+
+pub const SYMCRYPT_DIVISOR_TD = extern union {
+    fdef: SYMCRYPT_DIVISOR_FDEF,
+};
+
+pub const SYMCRYPT_DIVISOR = extern struct {
+    type: UINT32 align(SYMCRYPT_ASYM_ALIGN_VALUE),
+    nDigits: UINT32,
+    cbSize: UINT32,
+    nBits: UINT32,
+    magic: SIZE_T,
+    td: SYMCRYPT_DIVISOR_TD,
+    Int: SYMCRYPT_INT,
+};
+pub const PSYMCRYPT_DIVISOR = *SYMCRYPT_DIVISOR;
+pub const PCSYMCRYPT_DIVISOR = *const SYMCRYPT_DIVISOR;
+
+pub const SYMCRYPT_MODULUS_MONTGOMERY = extern struct {
+    Rsqr: PCUINT32,
+};
+
+pub const SYMCRYPT_MODULUS_PSEUDOMERSENNE = extern struct {
+    k: UINT32,
+};
+
+pub const SYMCRYPT_MODULUS_TM = extern union {
+    montgomery: SYMCRYPT_MODULUS_MONTGOMERY,
+    pseudoMersenne: SYMCRYPT_MODULUS_PSEUDOMERSENNE,
+};
+
+pub const SYMCRYPT_MODULUS = extern struct {
+    type: UINT32 align(SYMCRYPT_ASYM_ALIGN_VALUE),
+    nDigits: UINT32,
+    cbSize: UINT32,
+    flags: UINT32,
+    cbModElement: UINT32,
+    inv64: UINT64,
+    magic: SIZE_T,
+    tm: SYMCRYPT_MODULUS_TM,
+    Divisor: SYMCRYPT_DIVISOR,
+};
+pub const PSYMCRYPT_MODULUS = *SYMCRYPT_MODULUS;
+pub const PCSYMCRYPT_MODULUS = *const SYMCRYPT_MODULUS;
+
+pub const SYMCRYPT_MODELEMENT_D = extern union {
+    uint32: [1]UINT32,
+};
+
+pub const SYMCRYPT_MODELEMENT = extern struct {
+    d: SYMCRYPT_MODELEMENT_D align(SYMCRYPT_ASYM_ALIGN_VALUE),
+};
+pub const PSYMCRYPT_MODELEMENT = *SYMCRYPT_MODELEMENT;
+pub const PCSYMCRYPT_MODELEMENT = *const SYMCRYPT_MODELEMENT;
+
+pub inline fn SYMCRYPT_FDEF_SIZEOF_INT_FROM_DIGITS(nDigits: u32) u32 {
+    return nDigits * SYMCRYPT_FDEF_DIGIT_SIZE + @sizeOf(SYMCRYPT_INT);
+}
+
+pub inline fn SYMCRYPT_FDEF_SIZEOF_DIVISOR_FROM_DIGITS(nDigits: u32) u32 {
+    return nDigits * SYMCRYPT_FDEF_DIGIT_SIZE + @sizeOf(SYMCRYPT_DIVISOR);
+}
+
+pub inline fn SYMCRYPT_FDEF_SIZEOF_MODULUS_FROM_DIGITS(nDigits: u32) u32 {
+    return @sizeOf(SYMCRYPT_MODULUS) + SYMCRYPT_FDEF_SIZEOF_DIVISOR_FROM_DIGITS(nDigits) + (2 * nDigits * SYMCRYPT_FDEF_DIGIT_SIZE);
+}
+
+pub inline fn SYMCRYPT_FDEF_SIZEOF_MODELEMENT_FROM_DIGITS(nDigits: u32) u32 {
+    return nDigits * SYMCRYPT_FDEF_DIGIT_SIZE;
+}
+
+pub inline fn SYMCRYPT_INTERNAL_SIZEOF_INT_FROM_BITS(bitsize: u32) u32 {
+    return SYMCRYPT_FDEF_SIZEOF_INT_FROM_DIGITS(SYMCRYPT_FDEF_DIGITS_FROM_BITS(bitsize));
+}
+
+pub inline fn SYMCRYPT_INTERNAL_SIZEOF_DIVISOR_FROM_BITS(bitsize: u32) u32 {
+    return SYMCRYPT_FDEF_SIZEOF_DIVISOR_FROM_DIGITS(SYMCRYPT_FDEF_DIGITS_FROM_BITS(bitsize));
+}
+
+pub inline fn SYMCRYPT_INTERNAL_SIZEOF_MODULUS_FROM_BITS(bitsize: u32) u32 {
+    return SYMCRYPT_FDEF_SIZEOF_MODULUS_FROM_DIGITS(SYMCRYPT_FDEF_DIGITS_FROM_BITS(bitsize));
+}
+
+pub inline fn SYMCRYPT_INTERNAL_SIZEOF_MODELEMENT_FROM_BITS(bitsize: u32) u32 {
+    return SYMCRYPT_FDEF_SIZEOF_MODELEMENT_FROM_DIGITS(SYMCRYPT_FDEF_DIGITS_FROM_BITS(bitsize));
+}
+
+pub inline fn SYMCRYPT_SCRATCH_BYTES_FOR_INT_TO_DIVISOR(nDigits: u32) u32 {
+    return 16 * nDigits;
+}
+
+pub inline fn SYMCRYPT_SCRATCH_BYTES_FOR_INT_MUL(nDigits: u32) u32 {
+    return 16 * nDigits;
+}
+
+pub inline fn SYMCRYPT_SCRATCH_BYTES_FOR_INT_DIVMOD(nSrcDigits: u32, nDivisorDigits: u32) u32 {
+    _ = nDivisorDigits;
+    return (nSrcDigits + 1) * SYMCRYPT_FDEF_DIGIT_SIZE;
+}
+
+pub const SYMCRYPT_TRIALDIVISION_PRIME = extern struct {
+    invMod2e64: UINT64,
+    compareLimit: UINT64,
+};
+pub const PSYMCRYPT_TRIALDIVISION_PRIME = *SYMCRYPT_TRIALDIVISION_PRIME;
+pub const PCSYMCRYPT_TRIALDIVISION_PRIME = *const SYMCRYPT_TRIALDIVISION_PRIME;
+
+pub const SYMCRYPT_TRIALDIVISION_GROUP = extern struct {
+    nPrimes: UINT32,
+    factor: [9]UINT32,
+};
+pub const PSYMCRYPT_TRIALDIVISION_GROUP = *SYMCRYPT_TRIALDIVISION_GROUP;
+pub const PCSYMCRYPT_TRIALDIVISION_GROUP = *const SYMCRYPT_TRIALDIVISION_GROUP;
+
+pub const SYMCRYPT_TRIALDIVISION_CONTEXT = extern struct {
+    nBytesAlloc: SIZE_T,
+    maxTrialPrime: UINT32,
+    pGroupList: [*]SYMCRYPT_TRIALDIVISION_GROUP,
+    pPrimeList: [*]SYMCRYPT_TRIALDIVISION_PRIME,
+    pPrimes: PUINT32,
+    Primes3_5_17: [3]SYMCRYPT_TRIALDIVISION_PRIME,
+};
+pub const PSYMCRYPT_TRIALDIVISION_CONTEXT = *SYMCRYPT_TRIALDIVISION_CONTEXT;
+pub const PCSYMCRYPT_TRIALDIVISION_CONTEXT = *const SYMCRYPT_TRIALDIVISION_CONTEXT;
+
+pub const SYMCRYPT_SMALL_PRIME_GROUPS_SPEC = extern struct {
+    nGroups: UINT16,
+    nPrimes: UINT8,
+    maxPrime: UINT32,
+};
+
+pub const SYMCRYPT_MOD_BINARY_OP_FN = ?*const fn (
+    pmMod: PCSYMCRYPT_MODULUS,
+    peSrc1: PCSYMCRYPT_MODELEMENT,
+    peSrc2: PCSYMCRYPT_MODELEMENT,
+    peDst: PSYMCRYPT_MODELEMENT,
+    pbScratch: PBYTE,
+    cbScratch: SIZE_T,
+) callconv(SYMCRYPT_CALL) void;
+
+pub const SYMCRYPT_MOD_UNARY_OP_FN = ?*const fn (
+    pmMod: PCSYMCRYPT_MODULUS,
+    peSrc: PCSYMCRYPT_MODELEMENT,
+    peDst: PSYMCRYPT_MODELEMENT,
+    pbScratch: PBYTE,
+    cbScratch: SIZE_T,
+) callconv(SYMCRYPT_CALL) void;
+
+pub const SYMCRYPT_MOD_UNARY_OP_FLAG_STATUS_FN = ?*const fn (
+    pmMod: PCSYMCRYPT_MODULUS,
+    peSrc: PCSYMCRYPT_MODELEMENT,
+    peDst: PSYMCRYPT_MODELEMENT,
+    flags: UINT32,
+    pbScratch: PBYTE,
+    cbScratch: SIZE_T,
+) callconv(SYMCRYPT_CALL) SYMCRYPT_ERROR;
+
+pub const SYMCRYPT_MOD_SET_POST_FN = ?*const fn (
+    pmMod: PCSYMCRYPT_MODULUS,
+    peObj: PSYMCRYPT_MODELEMENT,
+    pbScratch: PBYTE,
+    cbScratch: SIZE_T,
+) callconv(SYMCRYPT_CALL) void;
+
+pub const SYMCRYPT_MOD_PRE_GET_FN = ?*const fn (
+    pmMod: PCSYMCRYPT_MODULUS,
+    peObj: PCSYMCRYPT_MODELEMENT,
+    pbScratch: PBYTE,
+    cbScratch: SIZE_T,
+) callconv(SYMCRYPT_CALL) PCUINT32;
+
+pub const SYMCRYPT_MOD_COPY_FN = ?*const fn (
+    pmMod: PCSYMCRYPT_MODULUS,
+    peSrc: PCSYMCRYPT_MODELEMENT,
+    peDst: PSYMCRYPT_MODELEMENT,
+) callconv(SYMCRYPT_CALL) void;
+
+pub const SYMCRYPT_MODULUS_COPYFIXUP_FN = ?*const fn (
+    pmSrc: PCSYMCRYPT_MODULUS,
+    pmDst: PSYMCRYPT_MODULUS,
+) callconv(SYMCRYPT_CALL) void;
+
+pub const SYMCRYPT_MODULUS_INIT_FN = ?*const fn (
+    pmObj: PSYMCRYPT_MODULUS,
+    pbScratch: PBYTE,
+    cbScratch: SIZE_T,
+) callconv(SYMCRYPT_CALL) void;
+
+pub const SYMCRYPT_MODULAR_FUNCTIONS = extern struct {
+    modAdd: SYMCRYPT_MOD_BINARY_OP_FN,
+    modSub: SYMCRYPT_MOD_BINARY_OP_FN,
+    modNeg: SYMCRYPT_MOD_UNARY_OP_FN,
+    modMul: SYMCRYPT_MOD_BINARY_OP_FN,
+    modSquare: SYMCRYPT_MOD_UNARY_OP_FN,
+    modInv: SYMCRYPT_MOD_UNARY_OP_FLAG_STATUS_FN,
+    modSetPost: SYMCRYPT_MOD_SET_POST_FN,
+    modPreGet: SYMCRYPT_MOD_PRE_GET_FN,
+    modulusCopyFixup: SYMCRYPT_MODULUS_COPYFIXUP_FN,
+    modulusInit: SYMCRYPT_MODULUS_INIT_FN,
+    slack: [6]?*anyopaque = .{ null, null, null, null, null, null },
+};
+
+pub const SYMCRYPT_MODULUS_TYPE_SELECTION_ENTRY = extern struct {
+    type: UINT32,
+    cpuFeatures: SYMCRYPT_CPU_FEATURES,
+    maxBits: UINT32,
+    modulusFeatures: UINT32,
+};
+pub const PSYMCRYPT_MODULUS_TYPE_SELECTION_ENTRY = *SYMCRYPT_MODULUS_TYPE_SELECTION_ENTRY;
+pub const PCSYMCRYPT_MODULUS_TYPE_SELECTION_ENTRY = *const SYMCRYPT_MODULUS_TYPE_SELECTION_ENTRY;

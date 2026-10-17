@@ -85,6 +85,9 @@ pub const sha512_par_ymm = @import("sha512_par_ymm.zig");
 pub const sha256_xmm = @import("sha256_xmm.zig");
 pub const sha256_ymm = @import("sha256_ymm.zig");
 pub const sha512_ymm = @import("sha512_ymm.zig");
+pub const fdef_general = @import("fdef_general.zig");
+pub const fdef_int = @import("fdef_int.zig");
+pub const a_dispatch = @import("a_dispatch.zig");
 
 comptime {
     _ = build_options;
@@ -163,8 +166,18 @@ comptime {
     _ = sha256_xmm;
     _ = sha256_ymm;
     _ = sha512_ymm;
+    _ = fdef_general;
+    _ = fdef_int;
+    _ = a_dispatch;
 
     // Compile-time sanity checks on core types, masks, rotations, and magic constants.
+    std.debug.assert(@alignOf(types.SYMCRYPT_INT) == types.SYMCRYPT_ASYM_ALIGN_VALUE);
+    std.debug.assert(@alignOf(types.SYMCRYPT_DIVISOR) == types.SYMCRYPT_ASYM_ALIGN_VALUE);
+    std.debug.assert(@alignOf(types.SYMCRYPT_MODULUS) == types.SYMCRYPT_ASYM_ALIGN_VALUE);
+    std.debug.assert(@alignOf(types.SYMCRYPT_MODELEMENT) == types.SYMCRYPT_ASYM_ALIGN_VALUE);
+    std.debug.assert(@offsetOf(types.SYMCRYPT_INT, "ti") == if (@sizeOf(usize) == 8) 32 else 16);
+    std.debug.assert(@offsetOf(types.SYMCRYPT_DIVISOR, "Int") == 32);
+    std.debug.assert(@sizeOf(types.SYMCRYPT_MODULAR_FUNCTIONS) == 16 * @sizeOf(usize));
     std.debug.assert(@offsetOf(types.SYMCRYPT_SESSION, "replayState") == 0);
     std.debug.assert(@offsetOf(types.SYMCRYPT_SESSION_REPLAY_STATE, "replayMask") == 0);
     std.debug.assert(@offsetOf(types.SYMCRYPT_SESSION_REPLAY_STATE, "messageNumber") == 8);
