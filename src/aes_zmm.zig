@@ -32,68 +32,19 @@ inline fn zeroupper() void {
 }
 
 inline fn xtsMulAlpha(in_v: V16u8) V16u8 {
-    const alpha_mask: V4u32 = .{ 0x87, 1, 1, 1 };
-    const zero: V4u32 = @splat(0);
-    const in_i32: @Vector(4, i32) = @bitCast(in_v);
-    const zero_i32: @Vector(4, i32) = @splat(0);
-    const cmp: V4u32 = @select(u32, zero_i32 > in_i32, @as(V4u32, @splat(0xffffffff)), @as(V4u32, @splat(0)));
-    const t1: V2u64 = @as(V2u64, @bitCast(in_v)) << @splat(1);
-    const t2: V16u8 = @shuffle(u8, @as(V16u8, @bitCast(cmp)), @as(V16u8, @bitCast(zero)), [16]i32{
-        12, 13, 14, 15,
-        0,  1,  2,  3,
-        4,  5,  6,  7,
-        8,  9,  10, 11,
-    });
-    const t2_masked: V4u32 = @as(V4u32, @bitCast(t2)) & alpha_mask;
-    return @as(V16u8, @bitCast(t1)) ^ @as(V16u8, @bitCast(t2_masked));
+    return aes_xmm.xtsMulAlpha(in_v);
 }
 
 inline fn xtsMulAlpha4(in_v: V16u8) V16u8 {
-    const zero: V16u8 = @splat(0);
-    const in_u64: V2u64 = @bitCast(in_v);
-    const t1: V16u8 = @bitCast(in_u64 << @splat(4));
-    const t2_shifted: V16u8 = @bitCast(in_u64 >> @splat(60));
-    const t1_carry: V16u8 = @shuffle(u8, t2_shifted, zero, [16]i32{
-        -1, -1, -1, -1, -1, -1, -1, -1,
-        0,  1,  2,  3,  4,  5,  6,  7,
-    });
-    const t1_combined = t1 ^ t1_carry;
-    const t2_hi: V16u8 = @shuffle(u8, t2_shifted, zero, [16]i32{
-        8,  9,  10, 11, 12, 13, 14, 15,
-        -1, -1, -1, -1, -1, -1, -1, -1,
-    });
-    const t2_u32: V4u32 = @bitCast(t2_hi);
-    const poly: V4u32 = (t2_u32 << @splat(7)) ^ (t2_u32 << @splat(2)) ^ (t2_u32 << @splat(1)) ^ t2_u32;
-    return t1_combined ^ @as(V16u8, @bitCast(poly));
+    return aes_xmm.xtsMulAlpha4(in_v);
 }
 
 inline fn xtsMulAlpha8(in_v: V16u8) V16u8 {
-    const zero: V16u8 = @splat(0);
-    const t1: V16u8 = @shuffle(u8, in_v, zero, [16]i32{
-        -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
-    });
-    const t2: V16u8 = @shuffle(u8, in_v, zero, [16]i32{
-        15, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    });
-    const t2_u32: V4u32 = @bitCast(t2);
-    const poly: V4u32 = (t2_u32 << @splat(7)) ^ (t2_u32 << @splat(2)) ^ (t2_u32 << @splat(1)) ^ t2_u32;
-    return t1 ^ @as(V16u8, @bitCast(poly));
+    return aes_xmm.xtsMulAlpha8(in_v);
 }
 
 inline fn xtsMulAlpha16(in_v: V16u8) V16u8 {
-    const zero: V16u8 = @splat(0);
-    const in_u32: V4u32 = @bitCast(in_v);
-    const t1: V16u8 = @bitCast(in_u32 << @splat(16));
-    const t2: V16u8 = @bitCast(in_u32 >> @splat(16));
-    const t1_carry: V16u8 = @shuffle(u8, t2, zero, [16]i32{
-        -1, -1, -1, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
-    });
-    const t2_hi: V16u8 = @shuffle(u8, t2, zero, [16]i32{
-        12, 13, 14, 15, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    });
-    const t2_u32: V4u32 = @bitCast(t2_hi);
-    const poly: V4u32 = (t2_u32 << @splat(7)) ^ (t2_u32 << @splat(2)) ^ (t2_u32 << @splat(1)) ^ t2_u32;
-    return t1 ^ t1_carry ^ @as(V16u8, @bitCast(poly));
+    return aes_xmm.xtsMulAlpha8(aes_xmm.xtsMulAlpha8(in_v));
 }
 
 inline fn aesEncryptZmm2048(
