@@ -1,37 +1,23 @@
 ## Prerequisites
-SymCrypt can be compiled with CMake >= 3.13.0 and Visual Studio 2019 or newer (with Windows 10 SDK version 18362) on Windows
-or gcc >= 9.4.0 or clang >= 10.0.0 on Linux. Note that CMake ships with Visual Studio 2019; you can use Visual Studio's
-included CMake by setting `$env:PATH="C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\;${env:PATH}"`.
 
-Python 3 is also required for translation of SymCryptAsm, and for building the SymCrypt module with integrity check.
-The integrity check additionally requires pip and pyelftools: `pip3 install -r ./scripts/requirements.txt`
+SymCrypt is built using the [Zig](https://ziglang.org/) build system (`build.zig`):
+
+- **Zig** >= 0.17.0
+- **Python 3** (required to translate `.symcryptasm` assembly sources via `scripts/symcryptasm_processor.py`)
 
 ## Platform and Architecture Support
-SymCrypt has pure C implementations of all supported functionality. These "generic" implementations are designed to
-be portable to various architectures. However, they do not offer optimal performance because they do not take
-advantage of CPU-specific optimizations. To that end, we also have hand-written assembly implementations of
-performance-critical internal functions. Our CMake build scripts do not currently support ASM optimizations on all
-combinations of architectures and platforms; the table below lists currently supported
-combinations.
 
-SymCrypt supports a variety of operating systems, CPU architectures, and runtime environments, but due to functionality
-gaps in the build systems we use, not every combination is supported by every build system. Specifically, because
-CMake does not currently support building kernel mode components, use MSBuild for official Windows builds, which must
-support the Windows kernel.
+SymCrypt has portable C implementations of all supported functionality as well as hand-written assembly and SIMD intrinsic implementations of performance-critical functions.
 
 ### Supported Configurations
 
-| Operating Environment | Architecture      | Supported compilers | ASM enabled | Static lib + unit tests | Dynamic lib | 
-| --------------------- | ----------------- | ------------------- | ----------- | ----------------------- | ----------- |
-| Windows kernel mode   | AMD64, ARM64      | MSVC                | ✅          | ✅                      | ✅         |
-| Windows user mode     | AMD64, ARM64, x86 | MSVC                | ✅          | ✅                      | ✅         |
-| Linux user mode       | AMD64, ARM64      | GCC, Clang          | ✅          | ✅                      | ✅         |
-| Linux user mode       | x86               | GCC, Clang          | ❌          | ✅                      | ✅         |
-| macOS                 | ARM64             | Apple Clang         | ✅          | ✅                      | ✅         |
-| macOS                 | AMD64¹            | Apple Clang         | ❌          | ✅                      | ✅         |
-
-Note: AMD64 is the terminology Windows uses for x86-64.
-¹: macOS AMD64 support will be deprecated soon.
+| Operating Environment | Architecture      | ASM enabled | Static libs (`symcrypt`, `symcrypt_plus`) | Unit tests (`symcryptunittest`) |
+| --------------------- | ----------------- | ----------- | ----------------------------------------- | ------------------------------- |
+| Linux user mode       | AMD64, ARM64      | ✅          | ✅                                        | ✅                              |
+| Linux user mode       | x86               | ❌          | ✅                                        | ✅                              |
+| macOS                 | ARM64             | ✅          | ✅                                        | ✅                              |
+| macOS                 | AMD64             | ❌          | ✅                                        | ✅                              |
+| Windows user mode     | AMD64, ARM64, x86 | ❌          | ✅                                        | ❌                              |
 
 The ability to build SymCrypt on any particular platform or architecture, with or without ASM optimizations, does not
 imply that it has been tested for or is actively supported by Microsoft on that platform/architecture. While we make
@@ -41,115 +27,73 @@ but not limited to the warranties of merchantability, fitness for a particular p
 (see our [LICENSE](./LICENSE.txt)).
 
 ## Build Instructions
-For Microsoft employees building the library internally, to include msbignum and RSA32 implementation benchmarks in
-the unit tests, make sure the SymCryptDependencies submodule is initialized by following the steps above
-(`git submodule init && git submodule update --checkout unittest/SymCryptDependencies`). When building, specify
-`/p:SymCryptTestLegacyImpl=true` for MSBuild, or `-DSYMCRYPT_TEST_LEGACY_IMPL=ON` for CMake. This only affects the
-unit tests, and does not change the functionality of the SymCrypt library itself.
 
-### Using Python scripts
-Building SymCrypt can be complicated due to the number of platforms, architectures and targets supported. To improve
-ease of use and have a consistent build solution that can be leveraged by both developers and our automated CI
-pipelines, we have created a set of Python scripts to help with building, testing and packaging. You can run
-`scripts/build.py --help` to get help with supported options.
+To build the SymCrypt static libraries (`libsymcrypt.a`, `libsymcrypt_plus.a`) and unit test executable (`symcryptunittest`) for the host platform:
 
-1. To build SymCrypt for Windows or Linux using the CMake build system, run `scripts/build.py cmake build_dir` where `build_dir` is the desired build output directory.
-    * To see additional options, run `scripts/build.py cmake --help`.
-    * On Windows, the build script also supports MSBuild. To use MSBuild, run `scripts\build.py msbuild`. The output directory for MSBuild is always `build\bin`.
-1. To run the unit tests after a build has finished, run `scripts/test.py build_dir`.
-    * Additional positional arguments will be passed directly to the unit test executable.
-1. To package up the built binaries into an archive, run `scripts/package.py build_dir arch configuration module_name release_dir`, where:
-    * `build_dir` is the build output directory
-    * `arch` is the architecture that the build was created for
-    * `configuration` is the build configuration (Debug, Release, Sanitize)
-    * `module_name` is the name of the module you wish to package (currently only relevant for Linux builds)
-    * `release_dir` is the output directory for the release archive
-
-### Building with CMake
-If you don't want to use the Python helper scripts, or if they do not support the specific build flags you desire,
-you can build SymCrypt by directly invoking CMake. Note that Python is still required for translating SymCryptAsm
-and building the Linux modules with FIPS integrity checks.
-
-1. If your platform is supported by our CMake presets (requires CMake >= 3.21), this is the easiest way to build. Run `cmake --list-presets` to view presets supported by the host machine.
-1. To build with a preset, run `cmake --preset <name>` and then `cmake --build --preset <name>`. You may also pass additional arguments as described below.
-1. For targets with no preset, or to further customize your build, run `cmake -S . -B bin` to configure your build. You can add the following optional CMake arguments to change build options:
-    * `-DSYMCRYPT_TARGET_ARCH=<AMD64|X86|ARM64>` to choose a target architecture. If not specified, it will default to the host system architecture.
-      * To cross-compile for Windows X86 from Windows AMD64, you must also use `-A Win32`
-      * To cross-compile for Linux ARM64, you must also use `--toolchain=cmake-configs/Toolchain-Clang-ARM64.cmake`
-    * `-DSYMCRYPT_USE_ASM=<ON|OFF>` to choose whether to use assembly optimizations. Defaults to `ON`.
-    * `-DSYMCRYPT_FIPS_BUILD=<ON|OFF>` to choose whether to enable FIPS in the SymCrypt shared object module. Defaults to `ON`. Currently only affects Linux builds. Disabling this reduces dependencies and avoids FIPS postprocessing.
-    * `-DSYMCRYPT_STRIP_BINARY=<ON|OFF>` to choose whether to strip the binary. Defaults to `ON`.
-    * `-DSYMCRYPT_FIPS_POSTPROCESS=<ON|OFF>` to choose whether to run the FIPS postprocess script. Defaults to `ON`.
-    * For a release build, specify `-DCMAKE_BUILD_TYPE=RelWithDebInfo`
-1. `cmake --build bin`
-    * Optionally, for a release build on Windows, specify `--config Release`
-    * Optionally specify `-jN` where N is the number of processes you wish to spawn for the build
-
-After successful compilation, the generated binaries will be placed in the following directories relative
-to your build directory:
-* `lib` - static libraries
-* `module` - shared object libraries (currently only on Linux)
-* `exe` - unit tests
-
-### Building with MSBuild
-SymCrypt also supports building with MSBuild on Windows. This is primarily intended for Microsoft-internal use in
-official builds, for compatibility with the Windows engineering system. If you wish to build directly with MSBuild,
-bypassing the Python helper script, you can run `msbuild /p:Platform=<platform> /p:Architecture=<arch> symcrypt.sln`.
-Note that Python is still required for translating SymCryptAsm. The output directory for MSBuild is always `build\bin`,
-and all compiled outputs are placed in this directory.
-
-## Building for Linux
-
-SymCrypt requires the following tools to build on Linux:
-
-- CMake >= 3.13
-- Python 3
-- gcc >= 7.4.0 or clang >= 10.0.0
-
-For example, on Debian-based systems, you can install the required packages via apt:
-
-```
-apt update
-apt -y install --no-install-recommends \
-    cmake \
-    python3-pyelftools \
-    build-essential \
+```bash
+zig build
 ```
 
-`python3-pyelftools` is used for building the FIPS module with integrity verification. On non-Debian distributions,
-it can be installed via `pip install -r scripts/requirements.txt`; you may want to create a Python virtual environment
-first.
+For an optimized release build:
 
-Additional dependencies may be required for cross-compilation.
-
-## Building for macOS
-Building on macOS requires the following prerequisites:
-- XCode (for developer tools, headers, and frameworks)
-- CMake
-- Python 3 (for build scripts)
-
-As described above, the easiest way to build for macOS is to use the Python build script or CMake presets.
-
-## Performance comparison with OpenSSL
-`symcryptunittest.exe` can be used to compare and measure performance of algorithms provided by SymCrypt and OpenSSL.
-On Windows, OpenSSL must be built from source as part of the SymCrypt build. `nasm` and  `strawberryperl` are
-prerequisites for building OpenSSL.
-
-```
-winget install nasm strawberryperl
-python3 .\scripts\build.py cmake bin --config Release --openssl-build-from-source
+```bash
+zig build -Doptimize=ReleaseSafe
 ```
 
-On Linux, you can use `libssl-dev` if it is available from your system's package manager.
+After a successful build, artifacts are installed under `zig-out/` (or the directory passed to `--prefix`):
 
-```
-sudo apt install -y libssl-dev
-python3 ./scripts/build.py cmake bin --config Release --openssl
+- `zig-out/lib/` — `libsymcrypt.a` and `libsymcrypt_plus.a` (or `.lib` on Windows targets)
+- `zig-out/bin/` — `symcryptunittest` (built by default on Linux and native macOS)
+
+### Build Options
+
+Run `zig build --help` to view all project-specific options:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-Doptimize=<mode>` | `Debug` | Optimization mode (`Debug`, `ReleaseSafe`, `ReleaseFast`, `ReleaseSmall`) |
+| `-Dtarget=<triple>` | Host target | Target triple for native or cross-compilation |
+| `-Dasm=<bool>` | `true` | Enable hand-written `.symcryptasm` assembly optimizations |
+| `-Dfips=<bool>` | `true` | Enable FIPS self-test and entropy defines |
+| `-Dunit-tests=<bool>` | `true` (Linux / native macOS) | Build the `symcryptunittest` executable |
+| `-Dtest-args=<arg>` | Fast functional suite | Arguments forwarded to `symcryptunittest` during `zig build test` (repeatable) |
+
+### Cross-Compilation
+
+Zig's bundled C/C++ cross-compiler and sysroots allow cross-compiling SymCrypt static libraries from any host:
+
+```bash
+# Linux targets (static libraries + unit test executable)
+zig build -Dtarget=x86_64-linux-gnu
+zig build -Dtarget=aarch64-linux-gnu
+
+# macOS targets (static libraries)
+zig build -Dtarget=aarch64-macos
+zig build -Dtarget=x86_64-macos
+
+# Windows targets (static libraries)
+zig build -Dtarget=x86_64-windows-gnu
+zig build -Dtarget=aarch64-windows-gnu
 ```
 
-To build OpenSSL from source on Linux, install following prerequisites.
+## Running Tests
 
+To build and run the functional unit test suite:
+
+```bash
+zig build test
 ```
-sudo apt install -y nasm perl
-python3 ./scripts/build.py cmake bin --config Release --openssl-build-from-source
+
+To run the unit test suite in `ReleaseSafe` mode (which also enables asymmetric self-test stress loops):
+
+```bash
+zig build test -Doptimize=ReleaseSafe
 ```
+
+To pass custom arguments to `symcryptunittest` (such as algorithm filters or `noperftests`):
+
+```bash
+zig build test -Dtest-args=noperftests -Dtest-args=+Sha256 -Dtest-args=+Aes
+```
+
+You can also invoke `./zig-out/bin/symcryptunittest` directly after running `zig build`. Run `./zig-out/bin/symcryptunittest -?` to list all supported flags, implementations, and algorithms.

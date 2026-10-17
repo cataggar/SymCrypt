@@ -2,12 +2,11 @@
     .name = .symcrypt,
     .version = "103.13.0",
     .fingerprint = 0xb6b43ae0f896f0e6,
-    .minimum_zig_version = "0.16.0",
+    .minimum_zig_version = "0.17.0",
     .dependencies = .{},
     .paths = .{
         "build.zig",
         "build.zig.zon",
-        "conf",
         "inc",
         "lib",
         "lib_plus",

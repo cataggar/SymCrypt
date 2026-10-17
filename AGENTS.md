@@ -10,30 +10,29 @@ The Microsoft-internal repository is hosted in Azure DevOps. The public GitHub r
 - **C** (C11): All algorithm implementations and library core; extensive use of intrinsics for performance-critical paths.
 - **Assembly** (`.symcryptasm`): Used for performance-critical code when intrinsics are unavailable or insufficient. Intrinsics are always preferred over assembly.
 - **C++** (C++17): Unit test framework only.
-- **Python 3**: Build scripts, ASM translation (`symcryptasm_processor.py`), FIPS integrity tools.
+- **Zig** (`build.zig`, `build.zig.zon`): Build system and cross-compilation configuration.
+- **Python 3**: ASM translation (`scripts/symcryptasm_processor.py`).
 - **Rust**: Experimental new Rust implementation (under `SymCRust` directory, not present on all branches).
 
 ### Key Directories
 
 | Directory | Purpose |
 |-----------|---------|
+| `build.zig`, `build.zig.zon` | Zig build configuration and package manifest |
 | `inc/` | Public headers (`symcrypt.h`), internal headers (`symcrypt_internal.h`), low-level API (`symcrypt_low_level.h`) |
 | `lib/` | All algorithm implementations (one file per algorithm or related group) |
+| `lib_plus/` | Composite / post-quantum (`symcrypt_plus`) implementations |
 | `lib/amd64/` | AMD64 assembly sources (`.symcryptasm` files) |
 | `lib/arm64/` | ARM64 assembly sources |
 | `lib/i386/` | x86 assembly sources |
-| `modules/` | Shared object libraries/DLLs (these constitute FIPS modules on Linux) |
+| `modules/` | Shared object module sources |
 | `unittest/` | Unit test executable, KAT data files (`kat_*.dat`), test infrastructure |
 | `test/` | Additional tests (e.g. indirect call perf) (legacy) |
-| `scripts/` | Build (`build.py`), test (`test.py`), packaging, ASM processing, version scripts |
+| `scripts/` | ASM processing (`symcryptasm_processor.py`) and FIPS/def helper scripts |
 | `3rdparty/` | Third-party dependencies (jitterentropy, etc.) |
-| `cmake-configs/` | CMake platform detection, toolchain files, compiler flag configuration |
-| `conf/` | Input templates (`symcrypt.pc.in`, `buildInfo.h.in`, `symcrypt_internal_shared.inc.in`) consumed by `scripts/version.py` and CMake `configure_file()` |
-| `msbuild/` | MSBuild `.props` files for Windows kernel/user-mode builds |
 | `gen/` | Code to generate constants and tables (legacy) |
-| `nuget/` | NuGet packaging metadata |
 | `doc/` | Design documents (notably `doc/breaking_changes.md` for the upcoming-breaking-changes roadmap) |
-| `.pipelines/` | Azure DevOps OneBranch CI pipeline definitions |ions |
+| `.github/workflows/` | GitHub Actions CI workflows |
 
 
 If you have access to Deep Wiki via MCP or web search, you can use it to ask questions about SymCrypt files. However, Deep Wiki should only be used as a starting point to conserve context, and you must directly confirm anything it tells you, as some of its information may be inaccurate or out-of-date.
@@ -43,59 +42,47 @@ If you have access to Deep Wiki via MCP or web search, you can use it to ask que
 ## Build Instructions
 
 ### Prerequisites
-- CMake >= 3.13.0 (>= 3.21 to use the `CMakePresets.json` presets)
-- Python 3 (required even for raw CMake builds — used for ASM translation and FIPS integrity)
-- **Windows**: Visual Studio 2019+ with Windows 10 SDK 18362, MSVC. **Must be running in a developer command prompt which has build tools on the PATH.**
-- **Linux**: GCC >= 9.4 or Clang >= 10.0
-- **macOS**: Apple Clang
-- pip packages: `pip3 install -r scripts/requirements.txt` (pyelftools, for FIPS postprocessing)
+- **Zig** >= 0.17.0
+- **Python 3** (used by `build.zig` to run `scripts/symcryptasm_processor.py` for `.symcryptasm` translation)
 
-### Using `scripts/build.py` (Recommended for MSBuild on Windows)
+### Building with `zig build`
 
 ```bash
-# MSBuild (Windows only)
-python3 scripts/build.py msbuild
+# Native Debug build (static libraries + unit test executable)
+zig build
 
-# build.py also supports CMake (Linux/macOS/Windows)
-python3 scripts/build.py cmake <build_dir>
+# Optimized ReleaseSafe build
+zig build -Doptimize=ReleaseSafe
 
-# See all options
-python3 scripts/build.py cmake --help
+# Cross-compile static libraries
+zig build -Dtarget=x86_64-linux-gnu
+zig build -Dtarget=aarch64-linux-gnu
+zig build -Dtarget=aarch64-macos
+zig build -Dtarget=x86_64-macos
+zig build -Dtarget=x86_64-windows-gnu
+zig build -Dtarget=aarch64-windows-gnu
 ```
 
-### CMake Presets
-
-`CMakePresets.json` defines presets for all supported configurations. Use `cmake --list-presets` to see which presets are available on the host machine. Presets with "Cross" in the name can be used for cross-compilation, but agents should do native builds unless explicitly instructed otherwise.
-
-```bash
-cmake --preset Linux_AMD64_GCC_Debug
-cmake --build --preset Linux_AMD64_GCC_Debug
-```
-
-### CMake Options
-
-CMake builds support the following options. Presets include default values, but these can be toggled individually for specific scenarios.
+### Build Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `SYMCRYPT_USE_ASM` | ON | Enable hand-written ASM optimizations |
-| `SYMCRYPT_FIPS_BUILD` | ON | Enable FIPS self-tests and integrity checks |
-| `SYMCRYPT_TARGET_ARCH` | Host arch | `AMD64`, `X86`, `ARM64` |
-| `SYMCRYPT_FIPS_POSTPROCESS` | ON | FIPS integrity hash postprocessing |
-| `SYMCRYPT_TEST_LEGACY_IMPL` | OFF | Internal Microsoft-only: legacy RSA32/msbignum benchmarks |
-| `SYMCRYPT_TEST_WITH_OPENSSL` | OFF | Enable OpenSSL performance comparison in tests |
-| `SYMCRYPT_STRIP_BINARY` | ON | Strip symbols in release builds |
+| `-Doptimize=<mode>` | `Debug` | Optimization mode (`Debug`, `ReleaseSafe`, `ReleaseFast`, `ReleaseSmall`) |
+| `-Dtarget=<triple>` | Host target | Target triple (`x86_64-linux-gnu`, `aarch64-linux-gnu`, `aarch64-macos`, `x86_64-windows-gnu`, etc.) |
+| `-Dasm=<bool>` | `true` | Enable hand-written `.symcryptasm` ASM optimizations |
+| `-Dfips=<bool>` | `true` | Enable FIPS self-tests and entropy defines (`SYMCRYPT_MODULE_DO_FIPS_SELFTESTS`) |
+| `-Dunit-tests=<bool>` | `true` on Linux / native macOS | Build `symcryptunittest` executable |
+| `-Dtest-args=<arg>` | Fast functional suite | Arguments forwarded to `symcryptunittest` when running `zig build test` |
 
 ### ASM vs Generic Builds
 
-When `SYMCRYPT_USE_ASM=OFF`, the `SYMCRYPT_IGNORE_PLATFORM` define is set and only portable C implementations are compiled. ASM is supported on:
-- Windows: AMD64, ARM64, x86
-- Linux: AMD64, ARM64
+When `-Dasm=false`, the `SYMCRYPT_IGNORE_PLATFORM` define is set and only portable C implementations are compiled. ASM is supported in `build.zig` on:
+- Linux: AMD64, ARM64, ARM
 - macOS: ARM64
 
 ### Kernel-Mode vs User-Mode
 
-Kernel-mode builds use MSBuild only (CMake does not support kernel components). The environment is selected by invoking the appropriate macro in the caller's code:
+The runtime environment is selected by invoking the appropriate macro in the caller's code:
 - `SYMCRYPT_ENVIRONMENT_WINDOWS_KERNELMODE_LATEST` (alias for `..._WIN8_1_N_LATER`)
 - `SYMCRYPT_ENVIRONMENT_WINDOWS_USERMODE_LATEST` (alias for `..._WIN8_1_N_LATER`)
 - `SYMCRYPT_ENVIRONMENT_POSIX_USERMODE` (also aliased as `..._LINUX_USERMODE`)
@@ -109,19 +96,20 @@ See `inc/symcrypt_internal.h` lines ~3257-3311 for the full list.
 
 ### Running Tests
 
-Tests can be run directly by executing `symcryptunittest.exe`. The location will depend on which build system was used.
-
-- CMake: `build/cmake/<preset>/exe`
-- MSBuild: `build/bin/<flavor>/exe`, where `<flavor>` is a Windows architecture/optimization pair, e.g. `amd64fre`
-
-The `test.py` script can also be used to help find and run the unit test executable, but it's preferable to invoke it directly.
+Tests can be built and run via `zig build test`, or by invoking `zig-out/bin/symcryptunittest` directly after `zig build`:
 
 ```bash
-# After building:
-python3 scripts/test.py <build_dir>
+# Run default functional test suite
+zig build test
+
+# Run tests with custom arguments (e.g. specific algorithm prefix)
+zig build test -Dtest-args=noperftests -Dtest-args=+Sha256
+
+# Or invoke the binary directly
+./zig-out/bin/symcryptunittest noperftests +Sha256
 ```
 
-Note that the unit test takes a long time to run. For a release build on a powerful system, it might take 8-10 minutes. Running the "generic" build without CPU-specific optimizations could take upwards of an hour, so this should be avoided. Generally you should run the tests in Debug mode for your host CPU, and let the CI pipeline handle other variants.
+Note that running the full unit test executable without arguments (including performance benchmarks across all algorithms) takes a long time to run (8-10 minutes in Release, longer in Debug). Use `zig build test` (which defaults to `noperftests` and a fast algorithm suite) or pass `+<alg. prefix>` via `-Dtest-args=...` when testing changes to a specific algorithm.
 
 ### What Tests Cover
 
@@ -410,10 +398,10 @@ Branch management and publishing to GitHub will always be done by human maintain
 
 ### CI Expectations
 
-PRs trigger the OneBranch pipelines (`.pipelines/OneBranch.WindowsUndocked.PullRequest.yml`, `.pipelines/OneBranch.PullRequest.yml`) which:
-- Builds all supported platform/architecture/compiler combinations
-- Runs the full unit test suite on CI-supported configurations
-- Runs all required security and static analysis tools (CredScan, PoliCheck, CodeQL, ...)
+PRs trigger the GitHub Actions CI workflow (`.github/workflows/ci.yml`) which:
+- Checks `zig fmt --check` on `build.zig` and `build.zig.zon`
+- Builds and runs `zig build test` on Linux (`x86_64` and `aarch64`)
+- Cross-compiles SymCrypt targets across Linux, macOS, and Windows (`x86_64` and `aarch64`)
 
 All CI checks must pass before merge.
 
