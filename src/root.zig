@@ -87,6 +87,8 @@ pub const sha256_ymm = @import("sha256_ymm.zig");
 pub const sha512_ymm = @import("sha512_ymm.zig");
 pub const fdef_general = @import("fdef_general.zig");
 pub const fdef_int = @import("fdef_int.zig");
+pub const fdef_mod = @import("fdef_mod.zig");
+pub const fdef369_mod = @import("fdef369_mod.zig");
 pub const a_dispatch = @import("a_dispatch.zig");
 pub const ccm = @import("ccm.zig");
 pub const ghash = @import("ghash.zig");
@@ -172,6 +174,8 @@ comptime {
     _ = sha512_ymm;
     _ = fdef_general;
     _ = fdef_int;
+    _ = fdef_mod;
+    _ = fdef369_mod;
     _ = a_dispatch;
     _ = ccm;
     _ = ghash;

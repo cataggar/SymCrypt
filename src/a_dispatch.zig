@@ -353,7 +353,7 @@ else
         .{ .type = SymCryptModFntableGeneric, .cpuFeatures = 0, .maxBits = 0, .modulusFeatures = 0 },
     };
 
-inline fn SYMCRYPT_MOD_FUNCTIONS(pm: PCSYMCRYPT_MODULUS) *const SYMCRYPT_MODULAR_FUNCTIONS {
+pub inline fn SYMCRYPT_MOD_FUNCTIONS(pm: PCSYMCRYPT_MODULUS) *const SYMCRYPT_MODULAR_FUNCTIONS {
     const offset: usize = macros.SYMCRYPT_FORCE_READ32(&pm.type) & g_SymCryptModFnsMask;
     const base: [*]const u8 = @ptrCast(&g_SymCryptModFns);
     return @ptrCast(@alignCast(base + offset));
