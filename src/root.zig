@@ -12,11 +12,25 @@ const std = @import("std");
 pub const build_options = @import("build_options");
 pub const types = @import("types.zig");
 pub const macros = @import("macros.zig");
+pub const equal = @import("equal.zig");
+pub const data_accessors = @import("data_accessors.zig");
+pub const fatal_intercept = @import("fatal_intercept.zig");
+pub const selftest = @import("selftest.zig");
+pub const scs_table = @import("scs_table.zig");
+pub const scs_tools = @import("scs_tools.zig");
+pub const recoding = @import("recoding.zig");
 
 comptime {
     _ = build_options;
     _ = types;
     _ = macros;
+    _ = equal;
+    _ = data_accessors;
+    _ = fatal_intercept;
+    _ = selftest;
+    _ = scs_table;
+    _ = scs_tools;
+    _ = recoding;
 
     // Compile-time sanity checks on core types, masks, rotations, and magic constants.
     std.debug.assert(@sizeOf(types.SYMCRYPT_ERROR) == @sizeOf(c_int));
