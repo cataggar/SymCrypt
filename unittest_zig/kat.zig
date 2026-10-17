@@ -358,3 +358,208 @@ pub export fn getCustomResource(resourceName: [*:0]u8, resourceType: [*:0]u8) ca
     }
     h.fatal("Could not locate resource {s}", .{req});
 }
+
+pub const ZigKatDataItem = struct {
+    name: []u8,
+    data: []u8,
+    line: i64,
+};
+
+pub const ZigKatItem = struct {
+    type: c_int = KAT_TYPE_END,
+    categoryName: []u8 = &.{},
+    dataItems: std.ArrayListUnmanaged(ZigKatDataItem) = .empty,
+    line: i64 = 1,
+
+    pub fn clearData(self: *ZigKatItem, line: i64) void {
+        for (self.dataItems.items) |it| {
+            std.heap.c_allocator.free(it.name);
+            std.heap.c_allocator.free(it.data);
+        }
+        self.dataItems.clearRetainingCapacity();
+        self.line = line;
+        self.type = KAT_TYPE_DATASET;
+    }
+
+    pub fn deinit(self: *ZigKatItem) void {
+        self.clearData(0);
+        self.dataItems.deinit(std.heap.c_allocator);
+        if (self.categoryName.len > 0) {
+            std.heap.c_allocator.free(self.categoryName);
+            self.categoryName = &.{};
+        }
+    }
+
+    pub fn findDataItem(self: *const ZigKatItem, name: []const u8) ?*const ZigKatDataItem {
+        for (self.dataItems.items) |*it| {
+            if (std.mem.eql(u8, it.name, name)) {
+                return it;
+            }
+        }
+        return null;
+    }
+
+    pub fn isFieldPresent(self: *const ZigKatItem, name: []const u8) bool {
+        return self.findDataItem(name) != null;
+    }
+
+    pub fn parseData(self: *const ZigKatItem, name: []const u8) []u8 {
+        const it = self.findDataItem(name) orelse {
+            h.fatal("Could not find dataset field \"{s}\" in dataset at line {d}", .{ name, self.line });
+        };
+        return parseDataSlice(it.data, it.line);
+    }
+
+    pub fn parseDataZ(self: *const ZigKatItem, name: []const u8) [:0]u8 {
+        const raw = self.parseData(name);
+        defer std.heap.c_allocator.free(raw);
+        const out = std.heap.c_allocator.allocSentinel(u8, raw.len, 0) catch h.fatal("Out of memory", .{});
+        @memcpy(out, raw);
+        return out;
+    }
+
+    pub fn parseInteger(self: *const ZigKatItem, name: []const u8) i64 {
+        const it = self.findDataItem(name) orelse {
+            h.fatal("Could not find dataset field \"{s}\" in dataset at line {d}", .{ name, self.line });
+        };
+        const s = it.data;
+        if (std.mem.startsWith(u8, s, "0x")) {
+            const u = std.fmt.parseInt(u64, s[2..], 16) catch 0;
+            return @bitCast(u);
+        } else {
+            return std.fmt.parseInt(i64, s, 10) catch 0;
+        }
+    }
+};
+
+pub const ZigKatReader = struct {
+    kat: KatData,
+
+    pub fn init(resourceName: []const u8) ZigKatReader {
+        for (embedded_kats) |entry| {
+            if (std.ascii.eqlIgnoreCase(resourceName, entry.name)) {
+                return .{
+                    .kat = .{
+                        .m_pbStart = entry.data.ptr,
+                        .m_pbData = entry.data.ptr,
+                        .m_pbEnd = entry.data.ptr + entry.data.len,
+                        .m_line = 1,
+                        .m_name = @ptrCast(@constCast(entry.name.ptr)),
+                    },
+                };
+            }
+        }
+        h.fatal("Could not locate resource {s}", .{resourceName});
+    }
+
+    pub fn getKatItem(self: *ZigKatReader, item: *ZigKatItem) void {
+        var inDataSet = false;
+        while (true) {
+            self.kat.skipSpace();
+            if (self.kat.atEol()) {
+                if (inDataSet) {
+                    self.kat.skipNewlines();
+                    item.type = KAT_TYPE_DATASET;
+                    item.line = self.kat.m_line;
+                    break;
+                } else {
+                    if (self.kat.isEmpty()) {
+                        item.type = KAT_TYPE_END;
+                        item.line = self.kat.m_line;
+                        break;
+                    }
+                    self.kat.skipNewlines();
+                    continue;
+                }
+            }
+
+            if (self.kat.next() == '[') {
+                if (inDataSet) {
+                    h.fatal("Missing blank line before category [...] marker on line {d}", .{self.kat.m_line});
+                }
+
+                const pbStart = self.kat.m_pbData;
+                const startLine = self.kat.m_line;
+                while (!self.kat.atEol() and self.kat.next() != ']') {
+                    self.kat.advance();
+                }
+
+                if (self.kat.atEol()) {
+                    h.fatal("Unclosed '[' in line {d}", .{startLine});
+                }
+
+                const pbEnd = self.kat.m_pbData;
+                self.kat.advance(); // skip ']'
+
+                self.kat.skipSpace();
+                if (!self.kat.atEol()) {
+                    h.fatal("Extra data after '[...]' in line {d}", .{self.kat.m_line});
+                }
+
+                item.type = KAT_TYPE_CATEGORY;
+                item.line = self.kat.m_line;
+                const cat_len = (@intFromPtr(pbEnd) - @intFromPtr(pbStart)) - 1;
+                if (item.categoryName.len > 0) {
+                    std.heap.c_allocator.free(item.categoryName);
+                }
+                item.categoryName = std.heap.c_allocator.dupe(u8, (pbStart + 1)[0..cat_len]) catch h.fatal("Out of memory", .{});
+
+                self.kat.skipNewlines();
+                break;
+            }
+
+            {
+                const nameStart = self.kat.m_pbData;
+                const startLine = self.kat.m_line;
+                while (!self.kat.atEol() and self.kat.next() != '=') {
+                    self.kat.advance();
+                }
+
+                if (self.kat.atEol()) {
+                    h.fatal("Missing = in line {d}", .{startLine});
+                }
+
+                const nameEnd = self.kat.m_pbData;
+                self.kat.advance(); // skip '='
+                const dataStart = self.kat.m_pbData;
+
+                while (!self.kat.atEol()) {
+                    self.kat.advance();
+                }
+                const dataEnd = self.kat.m_pbData;
+
+                const raw_name = nameStart[0 .. @intFromPtr(nameEnd) - @intFromPtr(nameStart)];
+                const raw_data = dataStart[0 .. @intFromPtr(dataEnd) - @intFromPtr(dataStart)];
+
+                const name = stripAlloc(raw_name, false);
+                const data = stripAlloc(raw_data, true);
+
+                if (!inDataSet) {
+                    inDataSet = true;
+                    item.clearData(self.kat.m_line);
+                }
+
+                for (name) |*ch| {
+                    ch.* = charToLower(ch.*);
+                }
+
+                if (item.isFieldPresent(name)) {
+                    h.fatal("Duplicate data field \"{s}\"in data set in line {d}", .{ name, self.kat.m_line });
+                }
+
+                item.dataItems.append(std.heap.c_allocator, .{
+                    .name = name,
+                    .data = data,
+                    .line = self.kat.m_line,
+                }) catch h.fatal("Out of memory", .{});
+
+                if (!self.kat.isEmpty() and self.kat.next() == '\r') {
+                    self.kat.advance();
+                }
+                if (!self.kat.isEmpty() and self.kat.next() == '\n') {
+                    self.kat.advance();
+                }
+            }
+        }
+    }
+};

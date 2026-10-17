@@ -1538,10 +1538,6 @@ testUtil();
 
 VOID
 testModuleInitEx();
-}
-
-VOID
-testDataAccessors();
 
 VOID
 testHashAlgorithms();
@@ -1559,6 +1555,13 @@ VOID
 testKmacAlgorithms();
 
 VOID
+testKdfAlgorithms();
+}
+
+VOID
+testDataAccessors();
+
+VOID
 testBlockCipherAlgorithms();
 
 VOID
@@ -1569,9 +1572,6 @@ testAuthEncAlgorithms();
 
 VOID
 testStreamCipherAlgorithms();
-
-VOID
-testKdfAlgorithms();
 
 VOID
 testXtsAlgorithms();

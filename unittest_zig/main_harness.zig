@@ -54,6 +54,12 @@ pub fn check(cond: bool, msg: [*:0]const u8) void {
     }
 }
 
+pub fn check3(cond: bool, comptime fmt: []const u8, arg: anytype) void {
+    if (!cond) {
+        fatal(fmt, .{arg});
+    }
+}
+
 pub export var g_rc2EffectiveKeyLength: u32 = 0;
 pub export var g_modeCfbShiftParam: usize = 1;
 pub export var g_modifiedCpuFeatures: u32 = 0;
@@ -299,6 +305,17 @@ pub export fn scTestSetContainsPrefixAlg(str_ptr: [*]const u8, str_len: usize) c
 
 pub export fn scTestSetContainsPrefixImp(str_ptr: [*]const u8, str_len: usize) callconv(.c) u32 {
     return if (g_implementationsToTestZig.containsPrefix(str_ptr[0..str_len])) 1 else 0;
+}
+
+pub fn isAlgorithmPresent(name: []const u8, emptyAllowed: bool) bool {
+    _ = emptyAllowed;
+    return g_algorithmsToTestZig.containsPrefix(name);
+}
+
+pub fn printHex(data: []const u8) void {
+    for (data) |b| {
+        zprint("{x:0>2}", .{b});
+    }
 }
 
 extern var g_SymCryptCpuFeaturesNotPresent: u32;
