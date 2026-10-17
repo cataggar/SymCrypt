@@ -88,6 +88,10 @@ pub const sha512_ymm = @import("sha512_ymm.zig");
 pub const fdef_general = @import("fdef_general.zig");
 pub const fdef_int = @import("fdef_int.zig");
 pub const a_dispatch = @import("a_dispatch.zig");
+pub const ccm = @import("ccm.zig");
+pub const ghash = @import("ghash.zig");
+pub const gcm = @import("gcm.zig");
+pub const xtsaes = @import("xtsaes.zig");
 
 comptime {
     _ = build_options;
@@ -169,6 +173,10 @@ comptime {
     _ = fdef_general;
     _ = fdef_int;
     _ = a_dispatch;
+    _ = ccm;
+    _ = ghash;
+    _ = gcm;
+    _ = xtsaes;
 
     // Compile-time sanity checks on core types, masks, rotations, and magic constants.
     std.debug.assert(@alignOf(types.SYMCRYPT_INT) == types.SYMCRYPT_ASYM_ALIGN_VALUE);
@@ -191,6 +199,12 @@ comptime {
     std.debug.assert(@offsetOf(types.SYMCRYPT_AES_EXPANDED_KEY, "lastEncRoundKey") == 29 * 16);
     std.debug.assert(@offsetOf(types.SYMCRYPT_AES_EXPANDED_KEY, "lastDecRoundKey") == 29 * 16 + @sizeOf(usize));
     std.debug.assert(@offsetOf(types.SYMCRYPT_AES_EXPANDED_KEY, "magic") == 29 * 16 + 2 * @sizeOf(usize));
+    std.debug.assert(@alignOf(types.SYMCRYPT_CCM_STATE) == types.SYMCRYPT_ALIGN_VALUE);
+    std.debug.assert(@alignOf(types.SYMCRYPT_GHASH_EXPANDED_KEY) == types.SYMCRYPT_ALIGN_VALUE);
+    std.debug.assert(@alignOf(types.SYMCRYPT_GCM_EXPANDED_KEY) == types.SYMCRYPT_ALIGN_VALUE);
+    std.debug.assert(@alignOf(types.SYMCRYPT_GCM_STATE) == types.SYMCRYPT_ALIGN_VALUE);
+    std.debug.assert(@alignOf(types.SYMCRYPT_XTS_AES_EXPANDED_KEY) == types.SYMCRYPT_ALIGN_VALUE);
+    std.debug.assert(@sizeOf(types.SYMCRYPT_XTS_AES_EXPANDED_KEY) == 2 * @sizeOf(types.SYMCRYPT_AES_EXPANDED_KEY));
 
     std.debug.assert(macros.MASK32_ZERO(0) == 0xffffffff);
     std.debug.assert(macros.MASK32_ZERO(1) == 0);
