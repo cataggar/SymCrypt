@@ -75,6 +75,8 @@ pub const fips_selftest = @import("fips_selftest.zig");
 pub const service_indicator = @import("service_indicator.zig");
 pub const aes_ctr_drbg = @import("aes_ctr_drbg.zig");
 pub const session = @import("session.zig");
+pub const xmss = @import("xmss.zig");
+pub const lms = @import("lms.zig");
 
 comptime {
     _ = build_options;
@@ -143,6 +145,8 @@ comptime {
     _ = service_indicator;
     _ = aes_ctr_drbg;
     _ = session;
+    _ = xmss;
+    _ = lms;
 
     // Compile-time sanity checks on core types, masks, rotations, and magic constants.
     std.debug.assert(@offsetOf(types.SYMCRYPT_SESSION, "replayState") == 0);
