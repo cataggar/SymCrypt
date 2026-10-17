@@ -982,3 +982,246 @@ scTestClearAndFreeAlgImps()
 }
 
 } // extern "C"
+
+VOID
+HashImplementation::hash(
+    _In_reads_( cbData )        PCBYTE  pbData,
+                                SIZE_T  cbData,
+    _Out_writes_( cbResult )    PBYTE   pbResult,
+                                SIZE_T  cbResult )
+{
+    init();
+    append( pbData, cbData );
+    result( pbResult, cbResult );
+}
+
+VOID
+XofImplementation::xof(
+        _In_reads_( cbData )        PCBYTE  pbData,
+                                    SIZE_T  cbData,
+        _Out_writes_( cbResult )    PBYTE   pbResult,
+                                    SIZE_T  cbResult )
+{
+    init();
+    append( pbData, cbData );
+    result( pbResult, cbResult );
+}
+
+VOID
+CustomizableXofImplementation::xof(
+        _In_reads_( cbNstr )        PCBYTE  pbNstr,
+                                    SIZE_T  cbNstr,
+        _In_reads_( cbSstr )        PCBYTE  pbSstr,
+                                    SIZE_T  cbSstr,
+        _In_reads_( cbData )        PCBYTE  pbData,
+                                    SIZE_T  cbData,
+        _Out_writes_( cbResult )    PBYTE   pbResult,
+                                    SIZE_T  cbResult )
+{
+    init( pbNstr, cbNstr, pbSstr, cbSstr );
+    append( pbData, cbData );
+    result( pbResult, cbResult );
+}
+
+VOID
+KmacImplementation::mac(
+        _In_reads_( cbCustomizationStr )    PCBYTE  pbCustomizationStr,
+                                            SIZE_T  cbCustomizationStr,
+        _In_reads_( cbKey )                 PCBYTE  pbKey,
+                                            SIZE_T  cbKey,
+        _In_reads_( cbData )                PCBYTE  pbData,
+                                            SIZE_T  cbData,
+        _Out_writes_( cbResult )            PBYTE   pbResult,
+                                            SIZE_T  cbResult )
+{
+    init( pbCustomizationStr, cbCustomizationStr, pbKey, cbKey );
+    append( pbData, cbData );
+    result( pbResult, cbResult );
+}
+
+VOID
+KmacImplementation::xof(
+        _In_reads_( cbCustomizationStr )    PCBYTE  pbCustomizationStr,
+                                            SIZE_T  cbCustomizationStr,
+        _In_reads_( cbKey )                 PCBYTE  pbKey,
+                                            SIZE_T  cbKey,
+        _In_reads_( cbData )                PCBYTE  pbData,
+                                            SIZE_T  cbData,
+        _Out_writes_( cbResult )            PBYTE   pbResult,
+                                            SIZE_T  cbResult )
+{
+    init( pbCustomizationStr, cbCustomizationStr, pbKey, cbKey );
+    append( pbData, cbData );
+    extract( pbResult, cbResult, true );
+}
+
+NTSTATUS
+MacImplementation::mac(
+    _In_reads_( cbKey )      PCBYTE pbKey,
+                             SIZE_T cbKey,
+    _In_reads_( cbData )     PCBYTE pbData,
+                             SIZE_T cbData,
+    _Out_writes_( cbResult ) PBYTE  pbResult,
+                             SIZE_T cbResult )
+{
+    NTSTATUS status;
+
+    status = init( pbKey, cbKey );
+    if( !NT_SUCCESS( status ) )
+    {
+        return status;
+    }
+
+    append( pbData, cbData );
+    result( pbResult, cbResult );
+
+    return STATUS_SUCCESS;
+}
+
+template<typename ImpClass>
+static size_t
+getMatchingAlgImps( const char * algNamePtr, size_t algNameLen, void ** outImps, size_t maxImps )
+{
+    String target( algNamePtr, algNameLen );
+    size_t count = 0;
+    for( AlgorithmImplementationVector::const_iterator i = g_algorithmImplementation.begin();
+         i != g_algorithmImplementation.end();
+         ++i )
+    {
+        if( (*i)->m_algorithmName + (*i)->m_modeName == target )
+        {
+            ImpClass * pImp = dynamic_cast<ImpClass *>( *i );
+            if( pImp != NULL )
+            {
+                if( count < maxImps )
+                {
+                    outImps[count] = static_cast<void *>( pImp );
+                }
+                count++;
+            }
+        }
+    }
+    return count;
+}
+
+extern "C" {
+
+size_t
+scTestGetHashImps( const char * algNamePtr, size_t algNameLen, void ** outImps, size_t maxImps )
+{
+    return getMatchingAlgImps<HashImplementation>( algNamePtr, algNameLen, outImps, maxImps );
+}
+
+size_t
+scTestGetParallelHashImps( const char * algNamePtr, size_t algNameLen, void ** outImps, size_t maxImps )
+{
+    return getMatchingAlgImps<ParallelHashImplementation>( algNamePtr, algNameLen, outImps, maxImps );
+}
+
+size_t
+scTestGetXofImps( const char * algNamePtr, size_t algNameLen, void ** outImps, size_t maxImps )
+{
+    return getMatchingAlgImps<XofImplementation>( algNamePtr, algNameLen, outImps, maxImps );
+}
+
+size_t
+scTestGetCustomizableXofImps( const char * algNamePtr, size_t algNameLen, void ** outImps, size_t maxImps )
+{
+    return getMatchingAlgImps<CustomizableXofImplementation>( algNamePtr, algNameLen, outImps, maxImps );
+}
+
+size_t
+scTestGetKmacImps( const char * algNamePtr, size_t algNameLen, void ** outImps, size_t maxImps )
+{
+    return getMatchingAlgImps<KmacImplementation>( algNamePtr, algNameLen, outImps, maxImps );
+}
+
+size_t
+scTestGetMacImps( const char * algNamePtr, size_t algNameLen, void ** outImps, size_t maxImps )
+{
+    return getMatchingAlgImps<MacImplementation>( algNamePtr, algNameLen, outImps, maxImps );
+}
+
+size_t
+scTestGetKdfImps( const char * algNamePtr, size_t algNameLen, void ** outImps, size_t maxImps )
+{
+    return getMatchingAlgImps<KdfImplementation>( algNamePtr, algNameLen, outImps, maxImps );
+}
+
+void
+scTestAlgImpAddErrorKatFailure( void * pImp, ULONGLONG delta )
+{
+    static_cast<AlgorithmImplementation *>( pImp )->m_nErrorKatFailure += delta;
+}
+
+void
+scTestResultMergeAddAlgImp( void * resMergeHandle, void * pImp, PCBYTE pbData, SIZE_T cbData )
+{
+    AlgorithmImplementation * pAlgImp = static_cast<AlgorithmImplementation *>( pImp );
+    scTestResultMergeAddResult(
+        resMergeHandle,
+        pAlgImp,
+        pAlgImp->m_implementationName.c_str(),
+        pAlgImp->m_algorithmName.c_str(),
+        &pAlgImp->m_nResults,
+        &pAlgImp->m_nErrorDisagreeWithMajority,
+        &pAlgImp->m_nErrorNoMajority,
+        pbData,
+        cbData );
+}
+
+// HashImplementation wrappers
+SIZE_T scTestHashImpResultLen( void * pImp ) { return static_cast<HashImplementation *>( pImp )->resultLen(); }
+SIZE_T scTestHashImpInputBlockLen( void * pImp ) { return static_cast<HashImplementation *>( pImp )->inputBlockLen(); }
+void scTestHashImpInit( void * pImp ) { static_cast<HashImplementation *>( pImp )->init(); }
+void scTestHashImpAppend( void * pImp, PCBYTE pbData, SIZE_T cbData ) { static_cast<HashImplementation *>( pImp )->append( pbData, cbData ); }
+void scTestHashImpResult( void * pImp, PBYTE pbResult, SIZE_T cbResult ) { static_cast<HashImplementation *>( pImp )->result( pbResult, cbResult ); }
+void scTestHashImpHash( void * pImp, PCBYTE pbData, SIZE_T cbData, PBYTE pbResult, SIZE_T cbResult ) { static_cast<HashImplementation *>( pImp )->hash( pbData, cbData, pbResult, cbResult ); }
+NTSTATUS scTestHashImpInitWithLongMessage( void * pImp, ULONGLONG nBytes ) { return static_cast<HashImplementation *>( pImp )->initWithLongMessage( nBytes ); }
+NTSTATUS scTestHashImpExportSymCryptFormat( void * pImp, PBYTE pbResult, SIZE_T cbResultBufferSize, SIZE_T * pcbResult ) { return static_cast<HashImplementation *>( pImp )->exportSymCryptFormat( pbResult, cbResultBufferSize, pcbResult ); }
+
+// ParallelHashImplementation wrappers
+SIZE_T scTestParHashImpResultLen( void * pImp ) { return static_cast<ParallelHashImplementation *>( pImp )->resultLen(); }
+SIZE_T scTestParHashImpInputBlockLen( void * pImp ) { return static_cast<ParallelHashImplementation *>( pImp )->inputBlockLen(); }
+PCSYMCRYPT_HASH scTestParHashImpSymCryptHash( void * pImp ) { return static_cast<ParallelHashImplementation *>( pImp )->SymCryptHash(); }
+void scTestParHashImpInit( void * pImp, SIZE_T nHashes ) { static_cast<ParallelHashImplementation *>( pImp )->init( nHashes ); }
+void scTestParHashImpProcess( void * pImp, BCRYPT_MULTI_HASH_OPERATION * pOperations, SIZE_T nOperations ) { static_cast<ParallelHashImplementation *>( pImp )->process( pOperations, nOperations ); }
+NTSTATUS scTestParHashImpInitWithLongMessage( void * pImp, ULONGLONG nBytes ) { return static_cast<ParallelHashImplementation *>( pImp )->initWithLongMessage( nBytes ); }
+
+// XofImplementation wrappers
+SIZE_T scTestXofImpInputBlockLen( void * pImp ) { return static_cast<XofImplementation *>( pImp )->inputBlockLen(); }
+void scTestXofImpInit( void * pImp ) { static_cast<XofImplementation *>( pImp )->init(); }
+void scTestXofImpAppend( void * pImp, PCBYTE pbData, SIZE_T cbData ) { static_cast<XofImplementation *>( pImp )->append( pbData, cbData ); }
+void scTestXofImpResult( void * pImp, PBYTE pbResult, SIZE_T cbResult ) { static_cast<XofImplementation *>( pImp )->result( pbResult, cbResult ); }
+void scTestXofImpExtract( void * pImp, PBYTE pbResult, SIZE_T cbResult, BOOLEAN bWipe ) { static_cast<XofImplementation *>( pImp )->extract( pbResult, cbResult, bWipe ); }
+void scTestXofImpXof( void * pImp, PCBYTE pbData, SIZE_T cbData, PBYTE pbResult, SIZE_T cbResult ) { static_cast<XofImplementation *>( pImp )->xof( pbData, cbData, pbResult, cbResult ); }
+
+// CustomizableXofImplementation wrappers
+SIZE_T scTestCXofImpInputBlockLen( void * pImp ) { return static_cast<CustomizableXofImplementation *>( pImp )->inputBlockLen(); }
+void scTestCXofImpInit( void * pImp, PCBYTE pbNstr, SIZE_T cbNstr, PCBYTE pbSstr, SIZE_T cbSstr ) { static_cast<CustomizableXofImplementation *>( pImp )->init( pbNstr, cbNstr, pbSstr, cbSstr ); }
+void scTestCXofImpAppend( void * pImp, PCBYTE pbData, SIZE_T cbData ) { static_cast<CustomizableXofImplementation *>( pImp )->append( pbData, cbData ); }
+void scTestCXofImpResult( void * pImp, PBYTE pbResult, SIZE_T cbResult ) { static_cast<CustomizableXofImplementation *>( pImp )->result( pbResult, cbResult ); }
+void scTestCXofImpExtract( void * pImp, PBYTE pbResult, SIZE_T cbResult, BOOLEAN bWipe ) { static_cast<CustomizableXofImplementation *>( pImp )->extract( pbResult, cbResult, bWipe ); }
+void scTestCXofImpXof( void * pImp, PCBYTE pbNstr, SIZE_T cbNstr, PCBYTE pbSstr, SIZE_T cbSstr, PCBYTE pbData, SIZE_T cbData, PBYTE pbResult, SIZE_T cbResult ) { static_cast<CustomizableXofImplementation *>( pImp )->xof( pbNstr, cbNstr, pbSstr, cbSstr, pbData, cbData, pbResult, cbResult ); }
+
+// KmacImplementation wrappers
+SIZE_T scTestKmacImpInputBlockLen( void * pImp ) { return static_cast<KmacImplementation *>( pImp )->inputBlockLen(); }
+void scTestKmacImpInit( void * pImp, PCBYTE pbCustomizationStr, SIZE_T cbCustomizationStr, PCBYTE pbKey, SIZE_T cbKey ) { static_cast<KmacImplementation *>( pImp )->init( pbCustomizationStr, cbCustomizationStr, pbKey, cbKey ); }
+void scTestKmacImpAppend( void * pImp, PCBYTE pbData, SIZE_T cbData ) { static_cast<KmacImplementation *>( pImp )->append( pbData, cbData ); }
+void scTestKmacImpResult( void * pImp, PBYTE pbResult, SIZE_T cbResult ) { static_cast<KmacImplementation *>( pImp )->result( pbResult, cbResult ); }
+void scTestKmacImpExtract( void * pImp, PBYTE pbResult, SIZE_T cbResult, BOOLEAN bWipe ) { static_cast<KmacImplementation *>( pImp )->extract( pbResult, cbResult, bWipe ); }
+void scTestKmacImpMac( void * pImp, PCBYTE pbCustomizationStr, SIZE_T cbCustomizationStr, PCBYTE pbKey, SIZE_T cbKey, PCBYTE pbData, SIZE_T cbData, PBYTE pbResult, SIZE_T cbResult ) { static_cast<KmacImplementation *>( pImp )->mac( pbCustomizationStr, cbCustomizationStr, pbKey, cbKey, pbData, cbData, pbResult, cbResult ); }
+void scTestKmacImpXof( void * pImp, PCBYTE pbCustomizationStr, SIZE_T cbCustomizationStr, PCBYTE pbKey, SIZE_T cbKey, PCBYTE pbData, SIZE_T cbData, PBYTE pbResult, SIZE_T cbResult ) { static_cast<KmacImplementation *>( pImp )->xof( pbCustomizationStr, cbCustomizationStr, pbKey, cbKey, pbData, cbData, pbResult, cbResult ); }
+
+// MacImplementation wrappers
+SIZE_T scTestMacImpResultLen( void * pImp ) { return static_cast<MacImplementation *>( pImp )->resultLen(); }
+SIZE_T scTestMacImpInputBlockLen( void * pImp ) { return static_cast<MacImplementation *>( pImp )->inputBlockLen(); }
+NTSTATUS scTestMacImpInit( void * pImp, PCBYTE pbKey, SIZE_T cbKey ) { return static_cast<MacImplementation *>( pImp )->init( pbKey, cbKey ); }
+void scTestMacImpAppend( void * pImp, PCBYTE pbData, SIZE_T cbData ) { static_cast<MacImplementation *>( pImp )->append( pbData, cbData ); }
+void scTestMacImpResult( void * pImp, PBYTE pbResult, SIZE_T cbResult ) { static_cast<MacImplementation *>( pImp )->result( pbResult, cbResult ); }
+NTSTATUS scTestMacImpMac( void * pImp, PCBYTE pbKey, SIZE_T cbKey, PCBYTE pbData, SIZE_T cbData, PBYTE pbResult, SIZE_T cbResult ) { return static_cast<MacImplementation *>( pImp )->mac( pbKey, cbKey, pbData, cbData, pbResult, cbResult ); }
+
+// KdfImplementation wrappers
+void scTestKdfImpDerive( void * pImp, PCBYTE pbKey, SIZE_T cbKey, PKDF_ARGUMENTS pArgs, PBYTE pbDst, SIZE_T cbDst ) { static_cast<KdfImplementation *>( pImp )->derive( pbKey, cbKey, pArgs, pbDst, cbDst ); }
+
+} // extern "C"
