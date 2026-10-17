@@ -24,6 +24,10 @@ pub const poly1305 = @import("poly1305.zig");
 pub const chacha20 = @import("chacha20.zig");
 pub const chacha20_poly1305 = @import("chacha20_poly1305.zig");
 pub const rc4 = @import("rc4.zig");
+pub const des_tables = @import("des_tables.zig");
+pub const des3 = @import("des3.zig");
+pub const desx = @import("desx.zig");
+pub const rc2 = @import("rc2.zig");
 
 comptime {
     _ = build_options;
@@ -41,6 +45,10 @@ comptime {
     _ = chacha20;
     _ = chacha20_poly1305;
     _ = rc4;
+    _ = des_tables;
+    _ = des3;
+    _ = desx;
+    _ = rc2;
 
     // Compile-time sanity checks on core types, masks, rotations, and magic constants.
     std.debug.assert(@sizeOf(types.SYMCRYPT_ERROR) == @sizeOf(c_int));
