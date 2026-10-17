@@ -34,6 +34,12 @@ pub const padding_pkcs7 = @import("padding_pkcs7.zig");
 pub const tls_cbc_verify = @import("tls_cbc_verify.zig");
 pub const aescmac = @import("aescmac.zig");
 pub const aeskw = @import("aeskw.zig");
+pub const hash = @import("hash.zig");
+pub const hash_pattern = @import("hash_pattern.zig");
+pub const md2 = @import("md2.zig");
+pub const md4 = @import("md4.zig");
+pub const md5 = @import("md5.zig");
+pub const sha1 = @import("sha1.zig");
 
 comptime {
     _ = build_options;
@@ -61,6 +67,12 @@ comptime {
     _ = tls_cbc_verify;
     _ = aescmac;
     _ = aeskw;
+    _ = hash;
+    _ = hash_pattern;
+    _ = md2;
+    _ = md4;
+    _ = md5;
+    _ = sha1;
 
     // Compile-time sanity checks on core types, masks, rotations, and magic constants.
     std.debug.assert(@sizeOf(types.SYMCRYPT_ERROR) == @sizeOf(c_int));
