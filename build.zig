@@ -35,7 +35,6 @@ const common_c_sources: []const []const u8 = &.{
     "gcm.c",
     "gen_int.c",
     "ghash.c",
-    "lms.c",
     "modexp.c",
     "parhash.c",
     "primes.c",
@@ -44,7 +43,6 @@ const common_c_sources: []const []const u8 = &.{
     "rsakey.c",
     "sha256Par.c",
     "sha512Par.c",
-    "xmss.c",
     "xtsaes.c",
 };
 
