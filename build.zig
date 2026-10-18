@@ -93,6 +93,39 @@ pub fn build(b: *std.Build) void {
     });
     b.installArtifact(symcrypt_lib);
 
+    const jent_dep = b.dependency("jitterentropy", .{
+        .target = target,
+        .optimize = optimize,
+        .linkage = .static,
+        .tools = false,
+    });
+
+    const module_mod = b.createModule(.{
+        .root_source_file = b.path("src/module_root.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+        .pic = if (os_tag == .windows) null else true,
+    });
+    module_mod.addImport("build_options", build_options_mod);
+    configureModuleCommon(b, module_mod, generated_headers);
+    addSymCryptCommonSources(b, module_mod, target, optimize, effective_use_asm);
+    module_mod.linkLibrary(jent_dep.artifact("jitterentropy"));
+    if (os_tag == .windows) {
+        module_mod.linkSystemLibrary("bcrypt", .{});
+    } else if (os_tag == .linux or os_tag == .macos) {
+        module_mod.linkSystemLibrary("pthread", .{});
+    }
+
+    const symcrypt_shared_lib = b.addLibrary(.{
+        .name = "symcrypt",
+        .linkage = .dynamic,
+        .version = symcrypt_version,
+        .root_module = module_mod,
+        .use_llvm = true,
+    });
+    b.installArtifact(symcrypt_shared_lib);
+
     const plus_mod = b.createModule(.{
         .root_source_file = b.path("src_plus/root.zig"),
         .target = target,
@@ -205,6 +238,7 @@ pub fn build(b: *std.Build) void {
         } else {
             run_unittest.addArgs(default_test_args);
         }
+        run_unittest.step.dependOn(b.getInstallStep());
         const test_step = b.step("test", "Run SymCrypt unit tests");
         test_step.dependOn(&run_unittest.step);
     }

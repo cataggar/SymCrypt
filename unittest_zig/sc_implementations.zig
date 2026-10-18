@@ -575,22 +575,15 @@ pub fn lookupDynamicSymbol(
     comptime sym_name: [*:0]const u8,
     comptime sym_type: DynamicSymbolType,
 ) ?T {
-    const Holder = struct {
-        var cached: ?T = null;
-        var attempted: bool = false;
-    };
-    if (!Holder.attempted) {
-        const raw = getDynamicSymbolPointerFromString(
-            h.g_dynamicSymCryptModuleHandle,
-            sym_name,
-            @backingInt(sym_type),
-        );
-        Holder.attempted = true;
-        if (raw) |ptr| {
-            Holder.cached = @ptrCast(@alignCast(ptr));
-        }
+    const raw = getDynamicSymbolPointerFromString(
+        h.g_dynamicSymCryptModuleHandle,
+        sym_name,
+        @backingInt(sym_type),
+    );
+    if (raw) |ptr| {
+        return @ptrCast(@alignCast(ptr));
     }
-    return Holder.cached;
+    return null;
 }
 
 pub fn hasDynamicSymbol(comptime sym_name: [*:0]const u8) bool {

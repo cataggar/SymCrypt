@@ -39,8 +39,12 @@ jobs:
             cataggar/zig@v0.17.0 RWSGOq2NVecA2UPNdBUZykf1CCb147pkmdtYxgb3Ti+JO/wCYvhbAb/U
       - name: Build and test (Debug)
         run: zig build test
+      - name: Test dynamic module (Debug)
+        run: ./zig-out/bin/symcryptunittest noperftests dynamic:./zig-out/lib/libsymcrypt.so statusindicator +Sha256 +Aes +AesCtrDrbg +Ecdsa
       - name: Build and test (ReleaseSafe)
         run: zig build test -Doptimize=ReleaseSafe
+      - name: Test dynamic module (ReleaseSafe)
+        run: ./zig-out/bin/symcryptunittest noperftests dynamic:./zig-out/lib/libsymcrypt.so statusindicator +Sha256 +Aes +AesCtrDrbg +Ecdsa
 
   cross-compile:
     name: Cross-compile (${{ matrix.target }})

@@ -3,14 +3,19 @@
     .version = "103.13.0",
     .fingerprint = 0xb6b43ae0f896f0e6,
     .minimum_zig_version = "0.17.0",
-    .dependencies = .{},
+    .dependencies = .{
+        .jitterentropy = .{
+            .url = "https://github.com/cataggar/jitterentropy/archive/97b915e80d7eb0828ef56d9560343d2255a7b09e.tar.gz",
+            .hash = "jitterentropy-3.8.0-eEBpUFLlKwCU4pplXFMxWSITzLlZnVBPG9MF0rhAZsEo",
+        },
+    },
     .paths = .{
         "build.zig",
         "build.zig.zon",
-        "inc",
+        "src",
+        "src_plus",
+        "unittest_zig",
         "lib",
-        "lib_plus",
-        "modules",
         "scripts",
         "unittest",
         "version.json",
