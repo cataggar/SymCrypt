@@ -137,6 +137,47 @@ pub export fn SymCryptChaCha20Crypt(
     }
 }
 
+const V4U32 = @Vector(4, UINT32);
+
+inline fn chachaVecRol(v: V4U32, comptime n: u5) V4U32 {
+    return (v << @splat(n)) | (v >> @splat(@as(u5, @intCast(32 - @as(u6, n)))));
+}
+
+inline fn chachaVecQuarterRound(a: *V4U32, b: *V4U32, c: *V4U32, d: *V4U32) void {
+    a.* +%= b.*;
+    d.* = chachaVecRol(d.* ^ a.*, 16);
+    c.* +%= d.*;
+    b.* = chachaVecRol(b.* ^ c.*, 12);
+    a.* +%= b.*;
+    d.* = chachaVecRol(d.* ^ a.*, 8);
+    c.* +%= d.*;
+    b.* = chachaVecRol(b.* ^ c.*, 7);
+}
+
+inline fn transpose4x4(r0: *V4U32, r1: *V4U32, r2: *V4U32, r3: *V4U32) void {
+    const t0 = @shuffle(UINT32, r0.*, r1.*, [4]i32{ 0, -1, 1, -2 });
+    const t1 = @shuffle(UINT32, r0.*, r1.*, [4]i32{ 2, -3, 3, -4 });
+    const t2 = @shuffle(UINT32, r2.*, r3.*, [4]i32{ 0, -1, 1, -2 });
+    const t3 = @shuffle(UINT32, r2.*, r3.*, [4]i32{ 2, -3, 3, -4 });
+    r0.* = @shuffle(UINT32, t0, t2, [4]i32{ 0, 1, -1, -2 });
+    r1.* = @shuffle(UINT32, t0, t2, [4]i32{ 2, 3, -3, -4 });
+    r2.* = @shuffle(UINT32, t1, t3, [4]i32{ 0, 1, -1, -2 });
+    r3.* = @shuffle(UINT32, t1, t3, [4]i32{ 2, 3, -3, -4 });
+}
+
+inline fn xorStoreVec4U32(pbDst: PBYTE, pbSrc: PCBYTE, v: V4U32) void {
+    if (comptime @import("builtin").cpu.arch.endian() == .little) {
+        const srcVec = @as(*align(1) const V4U32, @ptrCast(pbSrc)).*;
+        @as(*align(1) V4U32, @ptrCast(pbDst)).* = v ^ srcVec;
+    } else {
+        const arr: [4]UINT32 = v;
+        macros.STORE_LSBFIRST32(pbDst + 0, arr[0] ^ macros.LOAD_LSBFIRST32(pbSrc + 0));
+        macros.STORE_LSBFIRST32(pbDst + 4, arr[1] ^ macros.LOAD_LSBFIRST32(pbSrc + 4));
+        macros.STORE_LSBFIRST32(pbDst + 8, arr[2] ^ macros.LOAD_LSBFIRST32(pbSrc + 8));
+        macros.STORE_LSBFIRST32(pbDst + 12, arr[3] ^ macros.LOAD_LSBFIRST32(pbSrc + 12));
+    }
+}
+
 inline fn chachaQuarterRound(a: *UINT32, b: *UINT32, c: *UINT32, d: *UINT32) void {
     a.* +%= b.*;
     d.* ^= a.*;
@@ -162,6 +203,102 @@ pub export fn SymCryptChaCha20CryptBlocks(
     var pbDst = pbDst_in;
     var cbData = cbData_in;
     var counter: UINT32 = @truncate(pState.offset >> 6);
+
+    const k0: V4U32 = @splat(0x61707865);
+    const k1: V4U32 = @splat(0x3320646e);
+    const k2: V4U32 = @splat(0x79622d32);
+    const k3: V4U32 = @splat(0x6b206574);
+    const k4: V4U32 = @splat(pState.key[0]);
+    const k5: V4U32 = @splat(pState.key[1]);
+    const k6: V4U32 = @splat(pState.key[2]);
+    const k7: V4U32 = @splat(pState.key[3]);
+    const k8: V4U32 = @splat(pState.key[4]);
+    const k9: V4U32 = @splat(pState.key[5]);
+    const k10: V4U32 = @splat(pState.key[6]);
+    const k11: V4U32 = @splat(pState.key[7]);
+    const k13: V4U32 = @splat(pState.nonce[0]);
+    const k14: V4U32 = @splat(pState.nonce[1]);
+    const k15: V4U32 = @splat(pState.nonce[2]);
+
+    while (cbData >= 256) {
+        const k12 = V4U32{ counter, counter +% 1, counter +% 2, counter +% 3 };
+        var v0 = k0;
+        var v1 = k1;
+        var v2 = k2;
+        var v3 = k3;
+        var v4 = k4;
+        var v5 = k5;
+        var v6 = k6;
+        var v7 = k7;
+        var v8 = k8;
+        var v9 = k9;
+        var v10 = k10;
+        var v11 = k11;
+        var v12 = k12;
+        var v13 = k13;
+        var v14 = k14;
+        var v15 = k15;
+
+        for (0..10) |_| {
+            chachaVecQuarterRound(&v0, &v4, &v8, &v12);
+            chachaVecQuarterRound(&v1, &v5, &v9, &v13);
+            chachaVecQuarterRound(&v2, &v6, &v10, &v14);
+            chachaVecQuarterRound(&v3, &v7, &v11, &v15);
+
+            chachaVecQuarterRound(&v0, &v5, &v10, &v15);
+            chachaVecQuarterRound(&v1, &v6, &v11, &v12);
+            chachaVecQuarterRound(&v2, &v7, &v8, &v13);
+            chachaVecQuarterRound(&v3, &v4, &v9, &v14);
+        }
+
+        v0 +%= k0;
+        v1 +%= k1;
+        v2 +%= k2;
+        v3 +%= k3;
+        v4 +%= k4;
+        v5 +%= k5;
+        v6 +%= k6;
+        v7 +%= k7;
+        v8 +%= k8;
+        v9 +%= k9;
+        v10 +%= k10;
+        v11 +%= k11;
+        v12 +%= k12;
+        v13 +%= k13;
+        v14 +%= k14;
+        v15 +%= k15;
+
+        transpose4x4(&v0, &v1, &v2, &v3);
+        transpose4x4(&v4, &v5, &v6, &v7);
+        transpose4x4(&v8, &v9, &v10, &v11);
+        transpose4x4(&v12, &v13, &v14, &v15);
+
+        xorStoreVec4U32(pbDst + 0 * 64 + 0, pbSrc + 0 * 64 + 0, v0);
+        xorStoreVec4U32(pbDst + 0 * 64 + 16, pbSrc + 0 * 64 + 16, v4);
+        xorStoreVec4U32(pbDst + 0 * 64 + 32, pbSrc + 0 * 64 + 32, v8);
+        xorStoreVec4U32(pbDst + 0 * 64 + 48, pbSrc + 0 * 64 + 48, v12);
+
+        xorStoreVec4U32(pbDst + 1 * 64 + 0, pbSrc + 1 * 64 + 0, v1);
+        xorStoreVec4U32(pbDst + 1 * 64 + 16, pbSrc + 1 * 64 + 16, v5);
+        xorStoreVec4U32(pbDst + 1 * 64 + 32, pbSrc + 1 * 64 + 32, v9);
+        xorStoreVec4U32(pbDst + 1 * 64 + 48, pbSrc + 1 * 64 + 48, v13);
+
+        xorStoreVec4U32(pbDst + 2 * 64 + 0, pbSrc + 2 * 64 + 0, v2);
+        xorStoreVec4U32(pbDst + 2 * 64 + 16, pbSrc + 2 * 64 + 16, v6);
+        xorStoreVec4U32(pbDst + 2 * 64 + 32, pbSrc + 2 * 64 + 32, v10);
+        xorStoreVec4U32(pbDst + 2 * 64 + 48, pbSrc + 2 * 64 + 48, v14);
+
+        xorStoreVec4U32(pbDst + 3 * 64 + 0, pbSrc + 3 * 64 + 0, v3);
+        xorStoreVec4U32(pbDst + 3 * 64 + 16, pbSrc + 3 * 64 + 16, v7);
+        xorStoreVec4U32(pbDst + 3 * 64 + 32, pbSrc + 3 * 64 + 32, v11);
+        xorStoreVec4U32(pbDst + 3 * 64 + 48, pbSrc + 3 * 64 + 48, v15);
+
+        counter +%= 4;
+        pbSrc += 256;
+        pbDst += 256;
+        cbData -= 256;
+        pState.offset +%= 256;
+    }
 
     while (cbData >= 64) {
         var s0: UINT32 = 0x61707865;

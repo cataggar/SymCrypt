@@ -8,6 +8,7 @@
 
 const std = @import("std");
 const types = @import("types.zig");
+const wipe = @import("libmain.zig");
 
 const SYMCRYPT_AES_BLOCK_SIZE = types.SYMCRYPT_AES_BLOCK_SIZE;
 const SYMCRYPT_GF128_BLOCK_SIZE = types.SYMCRYPT_GF128_BLOCK_SIZE;
@@ -1234,6 +1235,7 @@ pub fn SymCryptXtsAesEncryptDataUnitNeon(
     }
 
     var tailBuf: [2 * SYMCRYPT_AES_BLOCK_SIZE]u8 = undefined;
+    defer wipe.SymCryptWipeKnownSize(&tailBuf, 2 * SYMCRYPT_AES_BLOCK_SIZE);
     if (cbDataTail > SYMCRYPT_AES_BLOCK_SIZE) {
         c0 = load128(src) ^ t0;
         aesEncrypt1(pExpandedKey, &c0);
@@ -1375,9 +1377,9 @@ pub fn SymCryptXtsAesDecryptDataUnitNeon(
     }
 
     var tailBuf: [2 * SYMCRYPT_AES_BLOCK_SIZE]u8 = undefined;
+    defer wipe.SymCryptWipeKnownSize(&tailBuf, 2 * SYMCRYPT_AES_BLOCK_SIZE);
     if (cbDataTail > SYMCRYPT_AES_BLOCK_SIZE) {
         t1 = xtsMulAlpha(t0);
-
         c0 = load128(src) ^ t1;
         aesDecrypt1(pExpandedKey, &c0);
         store128(tailBuf[0..].ptr, c0 ^ t1);
@@ -1528,40 +1530,63 @@ inline fn aesGcmEncrypt4(
     resm: *V16u8,
     resh: *V16u8,
 ) void {
+    @setEvalBranchQuota(10000);
     var keyPtr: [*]const [4][4]u8 = @ptrCast(&pExpandedKey.RoundKey[0]);
     const keyLimit: [*]const [4][4]u8 = pExpandedKey.lastEncRoundKey;
 
     var roundKey = loadKey(&keyPtr[0]);
-    keyPtr += 1;
 
-    var i: usize = 0;
-    while (i < gHashRounds) : (i += 1) {
-        aesEncryptRound4Ghash1(
-            roundKey,
-            c0,
-            c1,
-            c2,
-            c3,
-            gHashPointer,
-            gHashExpandedKeyTable,
-            todo,
-            resl,
-            resm,
-            resh,
-        );
-        roundKey = loadKey(&keyPtr[0]);
+    if (gHashRounds == 8) {
+        for (0..8) |_| {
+            keyPtr += 1;
+            aesEncryptRound4Ghash1(
+                roundKey,
+                c0,
+                c1,
+                c2,
+                c3,
+                gHashPointer,
+                gHashExpandedKeyTable,
+                todo,
+                resl,
+                resm,
+                resh,
+            );
+            roundKey = loadKey(&keyPtr[0]);
+        }
         keyPtr += 1;
-    }
-
-    i = 0;
-    while (i < (9 - gHashRounds)) : (i += 1) {
         c0.* = aese_aesmc(c0.*, roundKey);
         c1.* = aese_aesmc(c1.*, roundKey);
         c2.* = aese_aesmc(c2.*, roundKey);
         c3.* = aese_aesmc(c3.*, roundKey);
         roundKey = loadKey(&keyPtr[0]);
-        keyPtr += 1;
+    } else {
+        for (0..9) |i| {
+            keyPtr += 1;
+            if (i < gHashRounds) {
+                aesEncryptRound4Ghash1(
+                    roundKey,
+                    c0,
+                    c1,
+                    c2,
+                    c3,
+                    gHashPointer,
+                    gHashExpandedKeyTable,
+                    todo,
+                    resl,
+                    resm,
+                    resh,
+                );
+            } else {
+                c0.* = aese_aesmc(c0.*, roundKey);
+                c1.* = aese_aesmc(c1.*, roundKey);
+                c2.* = aese_aesmc(c2.*, roundKey);
+                c3.* = aese_aesmc(c3.*, roundKey);
+            }
+            roundKey = loadKey(&keyPtr[0]);
+        }
     }
+    keyPtr += 1;
 
     if (@intFromPtr(keyPtr) < @intFromPtr(keyLimit)) {
         inline for (0..2) |_| {
@@ -1655,37 +1680,35 @@ inline fn aesGcmEncrypt8(
     resm: *V16u8,
     resh: *V16u8,
 ) void {
+    @setEvalBranchQuota(10000);
     var keyPtr: [*]const [4][4]u8 = @ptrCast(&pExpandedKey.RoundKey[0]);
     const keyLimit: [*]const [4][4]u8 = pExpandedKey.lastEncRoundKey;
 
     var roundKey = loadKey(&keyPtr[0]);
-    keyPtr += 1;
 
-    var i: usize = 0;
-    while (i < gHashRounds) : (i += 1) {
-        aesEncryptRound8Ghash1(
-            roundKey,
-            c0,
-            c1,
-            c2,
-            c3,
-            c4,
-            c5,
-            c6,
-            c7,
-            gHashPointer,
-            gHashExpandedKeyTable,
-            todo,
-            resl,
-            resm,
-            resh,
-        );
-        roundKey = loadKey(&keyPtr[0]);
+    if (gHashRounds == 8) {
+        for (0..8) |_| {
+            keyPtr += 1;
+            aesEncryptRound8Ghash1(
+                roundKey,
+                c0,
+                c1,
+                c2,
+                c3,
+                c4,
+                c5,
+                c6,
+                c7,
+                gHashPointer,
+                gHashExpandedKeyTable,
+                todo,
+                resl,
+                resm,
+                resh,
+            );
+            roundKey = loadKey(&keyPtr[0]);
+        }
         keyPtr += 1;
-    }
-
-    i = 0;
-    while (i < (9 - gHashRounds)) : (i += 1) {
         c0.* = aese_aesmc(c0.*, roundKey);
         c1.* = aese_aesmc(c1.*, roundKey);
         c2.* = aese_aesmc(c2.*, roundKey);
@@ -1695,8 +1718,41 @@ inline fn aesGcmEncrypt8(
         c6.* = aese_aesmc(c6.*, roundKey);
         c7.* = aese_aesmc(c7.*, roundKey);
         roundKey = loadKey(&keyPtr[0]);
-        keyPtr += 1;
+    } else {
+        for (0..9) |i| {
+            keyPtr += 1;
+            if (i < gHashRounds) {
+                aesEncryptRound8Ghash1(
+                    roundKey,
+                    c0,
+                    c1,
+                    c2,
+                    c3,
+                    c4,
+                    c5,
+                    c6,
+                    c7,
+                    gHashPointer,
+                    gHashExpandedKeyTable,
+                    todo,
+                    resl,
+                    resm,
+                    resh,
+                );
+            } else {
+                c0.* = aese_aesmc(c0.*, roundKey);
+                c1.* = aese_aesmc(c1.*, roundKey);
+                c2.* = aese_aesmc(c2.*, roundKey);
+                c3.* = aese_aesmc(c3.*, roundKey);
+                c4.* = aese_aesmc(c4.*, roundKey);
+                c5.* = aese_aesmc(c5.*, roundKey);
+                c6.* = aese_aesmc(c6.*, roundKey);
+                c7.* = aese_aesmc(c7.*, roundKey);
+            }
+            roundKey = loadKey(&keyPtr[0]);
+        }
     }
+    keyPtr += 1;
 
     if (@intFromPtr(keyPtr) < @intFromPtr(keyLimit)) {
         inline for (0..2) |_| {

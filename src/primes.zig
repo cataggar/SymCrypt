@@ -203,7 +203,9 @@ pub export fn SymCryptIntGenerateRandomPrimeEx(
 
     const nBitsHigh: UINT32 = a_dispatch.SymCryptIntBitsizeOfValue(piHigh);
 
-    const pTrialDivisionContext = a_dispatch.SymCryptCreateTrialDivisionContext(a_dispatch.SymCryptIntDigitsizeOfObject(piHigh)).?;
+    const pTrialDivisionContext = a_dispatch.SymCryptCreateTrialDivisionContext(a_dispatch.SymCryptIntDigitsizeOfObject(piHigh)) orelse {
+        return .SYMCRYPT_MEMORY_ALLOCATION_FAILURE;
+    };
     defer a_dispatch.SymCryptFreeTrialDivisionContext(pTrialDivisionContext);
 
     macros.SYMCRYPT_ASSERT(

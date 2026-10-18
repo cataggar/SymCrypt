@@ -8,6 +8,7 @@ const std = @import("std");
 const types = @import("types.zig");
 const macros = @import("macros.zig");
 const libmain = @import("libmain.zig");
+const equal = @import("equal.zig");
 const data_accessors = @import("data_accessors.zig");
 const sha3 = @import("sha3.zig");
 const shake = @import("shake.zig");
@@ -561,20 +562,19 @@ pub export fn SymCryptMlDsaPolyElementSetZero(
 pub export fn SymCryptMlDsaPolyElementNTT(
     peSrc: PSYMCRYPT_MLDSA_POLYELEMENT,
 ) callconv(SYMCRYPT_CALL) void {
-    var k: UINT32 = 0;
-    var len: UINT32 = SYMCRYPT_MLWE_POLYNOMIAL_COEFFICIENTS / 2;
+    var k: usize = 0;
 
-    while (len >= 1) : (len /= 2) {
-        var start: UINT32 = 0;
+    inline for ([_]usize{ 128, 64, 32, 16, 8, 4, 2, 1 }) |len| {
+        var start: usize = 0;
         while (start < SYMCRYPT_MLWE_POLYNOMIAL_COEFFICIENTS) : (start += 2 * len) {
             k += 1;
             const twiddleFactor: UINT32 = MLDSA_ZETA_BITREV_TIMES_R[k];
 
-            var j: UINT32 = start;
-            while (j < start + len) : (j += 1) {
-                const t: UINT32 = SymCryptMlDsaMontMul(twiddleFactor, peSrc.coeffs[j + len]);
-                peSrc.coeffs[j + len] = SymCryptMlDsaModSub(peSrc.coeffs[j], t);
-                peSrc.coeffs[j] = SymCryptMlDsaModAdd(peSrc.coeffs[j], t);
+            for (0..len) |j| {
+                const idx = start + j;
+                const t: UINT32 = SymCryptMlDsaMontMul(twiddleFactor, peSrc.coeffs[idx + len]);
+                peSrc.coeffs[idx + len] = SymCryptMlDsaModSub(peSrc.coeffs[idx], t);
+                peSrc.coeffs[idx] = SymCryptMlDsaModAdd(peSrc.coeffs[idx], t);
             }
         }
     }
@@ -583,21 +583,20 @@ pub export fn SymCryptMlDsaPolyElementNTT(
 pub export fn SymCryptMlDsaPolyElementINTT(
     peSrc: PSYMCRYPT_MLDSA_POLYELEMENT,
 ) callconv(SYMCRYPT_CALL) void {
-    var k: UINT32 = SYMCRYPT_MLWE_POLYNOMIAL_COEFFICIENTS;
-    var len: UINT32 = 1;
+    var k: usize = SYMCRYPT_MLWE_POLYNOMIAL_COEFFICIENTS;
 
-    while (len < SYMCRYPT_MLWE_POLYNOMIAL_COEFFICIENTS) : (len *= 2) {
-        var start: UINT32 = 0;
+    inline for ([_]usize{ 1, 2, 4, 8, 16, 32, 64, 128 }) |len| {
+        var start: usize = 0;
         while (start < SYMCRYPT_MLWE_POLYNOMIAL_COEFFICIENTS) : (start += 2 * len) {
             k -= 1;
             const twiddleFactor: UINT32 = MLDSA_NEGATIVE_ZETA_BITREV_TIMES_R[k];
 
-            var j: UINT32 = start;
-            while (j < start + len) : (j += 1) {
-                const t: UINT32 = peSrc.coeffs[j];
-                peSrc.coeffs[j] = SymCryptMlDsaModAdd(t, peSrc.coeffs[j + len]);
-                peSrc.coeffs[j + len] = SymCryptMlDsaModSub(t, peSrc.coeffs[j + len]);
-                peSrc.coeffs[j + len] = SymCryptMlDsaMontMul(twiddleFactor, peSrc.coeffs[j + len]);
+            for (0..len) |j| {
+                const idx = start + j;
+                const t: UINT32 = peSrc.coeffs[idx];
+                peSrc.coeffs[idx] = SymCryptMlDsaModAdd(t, peSrc.coeffs[idx + len]);
+                peSrc.coeffs[idx + len] = SymCryptMlDsaModSub(t, peSrc.coeffs[idx + len]);
+                peSrc.coeffs[idx + len] = SymCryptMlDsaMontMul(twiddleFactor, peSrc.coeffs[idx + len]);
             }
         }
     }
@@ -1047,6 +1046,7 @@ pub export fn SymCryptMlDsaExpandMask(
     var seedSuffix: [2]BYTE = undefined;
     const cbShakeOutput: UINT32 = (@as(UINT32, pParams.maskCoefficientRangeLog2) + 1) * (SYMCRYPT_MLWE_POLYNOMIAL_COEFFICIENTS / 8);
     var shakeOutput: [20 * 32]BYTE = undefined;
+    defer libmain.SymCryptWipeKnownSize(&shakeOutput, @sizeOf(@TypeOf(shakeOutput)));
     macros.ASSERT(cbShakeOutput <= shakeOutput.len);
 
     var i: UINT16 = 0;
@@ -1725,7 +1725,7 @@ pub export fn SymCryptMlDsaSkDecode(
 
                 const t0Bytes: [*]const u8 = @ptrCast(pkMlDsakey.pvt0);
                 const t0TmpBytes: [*]const u8 = @ptrCast(pvt0Tmp);
-                if (!std.mem.eql(u8, t0Bytes[0..pvt0Tmp.cbTotalSize], t0TmpBytes[0..pvt0Tmp.cbTotalSize])) {
+                if (equal.SymCryptEqual(t0Bytes, t0TmpBytes, pvt0Tmp.cbTotalSize) == 0) {
                     scError = .SYMCRYPT_INVALID_BLOB;
                     break :blk;
                 }
@@ -1743,7 +1743,7 @@ pub export fn SymCryptMlDsaSkDecode(
                     SYMCRYPT_MLDSA_PUBLIC_KEY_HASH_SIZE,
                 );
 
-                if (!std.mem.eql(u8, &pkMlDsakey.publicKeyHash, &pubKeyHashTmp)) {
+                if (equal.SymCryptEqual(&pkMlDsakey.publicKeyHash, &pubKeyHashTmp, SYMCRYPT_MLDSA_PUBLIC_KEY_HASH_SIZE) == 0) {
                     scError = .SYMCRYPT_INVALID_BLOB;
                     break :blk;
                 }

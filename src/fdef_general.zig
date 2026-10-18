@@ -96,8 +96,8 @@ pub export fn SymCryptFdefMaskedCopyC(
     mask: UINT32,
 ) callconv(SYMCRYPT_CALL) void {
     const m64: UINT64 = @as(UINT64, 0) -% @as(UINT64, mask & 1);
-    const pSrc: PCUINT64 = @ptrCast(@alignCast(pbSrc));
-    const pDst: PUINT64 = @ptrCast(@alignCast(pbDst));
+    const pSrc: [*]align(4) const UINT64 = @ptrCast(@alignCast(pbSrc));
+    const pDst: [*]align(4) UINT64 = @ptrCast(@alignCast(pbDst));
 
     macros.SYMCRYPT_ASSERT((mask +% 1) < 2);
 
@@ -143,8 +143,8 @@ pub export fn SymCryptFdefConditionalSwapC(
     cond: UINT32,
 ) callconv(SYMCRYPT_CALL) void {
     const m64: UINT64 = @as(UINT64, 0) -% @as(UINT64, cond & 1);
-    const pSrc1: PUINT64 = @ptrCast(@alignCast(pbSrc1));
-    const pSrc2: PUINT64 = @ptrCast(@alignCast(pbSrc2));
+    const pSrc1: [*]align(4) UINT64 = @ptrCast(@alignCast(pbSrc1));
+    const pSrc2: [*]align(4) UINT64 = @ptrCast(@alignCast(pbSrc2));
 
     macros.SYMCRYPT_ASSERT(cond < 2);
 

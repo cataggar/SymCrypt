@@ -276,7 +276,7 @@ pub export fn SymCryptEcpointMultiScalarMulWnafWithInterleaving(
 
     var bPrecompOffline: bool = false;
 
-    var poPIs: [types.SYMCRYPT_ECURVE_SW_MAX_NPRECOMP_POINTS]PSYMCRYPT_ECPOINT = undefined;
+    var poPIs: [types.SYMCRYPT_ECURVE_MULTI_SCALAR_MUL_MAX_NPOINTS * types.SYMCRYPT_ECURVE_SW_MAX_NPRECOMP_POINTS]PSYMCRYPT_ECPOINT = undefined;
 
     const cbEcpoint: SIZE_T = ecpoint.SymCryptSizeofEcpointFromCurve(pCurve);
     const cbScalar: SIZE_T = a_dispatch.SymCryptSizeofIntFromDigits(pCurve.GOrdDigits);

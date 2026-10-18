@@ -346,6 +346,7 @@ pub export fn SymCryptCfbEncrypt(
     }
 
     @memcpy(pbChainingValue[0..blockSize], chain[0..blockSize]);
+    wipeKnownSize(&buf);
 }
 
 pub export fn SymCryptCfbDecrypt(
@@ -358,6 +359,7 @@ pub export fn SymCryptCfbDecrypt(
     cbDataIn: SIZE_T,
 ) callconv(SYMCRYPT_CALL) void {
     var buf: [2 * SYMCRYPT_MAX_BLOCK_SIZE]BYTE align(SYMCRYPT_ALIGN_VALUE) = undefined;
+    defer wipeKnownSize(&buf);
     const chain: PBYTE = buf[0..SYMCRYPT_MAX_BLOCK_SIZE].ptr;
     const tmp: PBYTE = buf[SYMCRYPT_MAX_BLOCK_SIZE .. 2 * SYMCRYPT_MAX_BLOCK_SIZE].ptr;
 

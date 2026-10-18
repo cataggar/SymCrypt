@@ -103,7 +103,7 @@ pub export fn SymCryptCrtGenerateInverses(
     cbScratch: SIZE_T,
 ) callconv(SYMCRYPT_CALL) SYMCRYPT_ERROR {
     if (nCoprimes == 2) {
-        _ = SymCryptCrtGenerateForTwoCoprimes(
+        return SymCryptCrtGenerateForTwoCoprimes(
             ppmCoprimes[0],
             ppmCoprimes[1],
             flags,
@@ -112,7 +112,6 @@ pub export fn SymCryptCrtGenerateInverses(
             pbScratch,
             cbScratch,
         );
-        return .SYMCRYPT_NO_ERROR;
     } else {
         return .SYMCRYPT_INVALID_ARGUMENT;
     }

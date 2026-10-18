@@ -276,6 +276,7 @@ pub export fn SymCryptRsakeyCalculatePrivateFields(
 ) callconv(SYMCRYPT_CALL) SYMCRYPT_ERROR {
     var scError: SYMCRYPT_ERROR = .SYMCRYPT_NO_ERROR;
     var tmpGcdBuf: [types.SYMCRYPT_INTERNAL_SIZEOF_INT_FROM_BITS(64)]BYTE align(types.SYMCRYPT_ASYM_ALIGN_VALUE) = undefined;
+    defer libmain.SymCryptWipeKnownSize(&tmpGcdBuf, @sizeOf(@TypeOf(tmpGcdBuf)));
 
     const piScr: PSYMCRYPT_INT = a_dispatch.SymCryptIntFromDivisor(pdTmp);
     const allowedFlags: UINT32 = types.SYMCRYPT_FLAG_KEY_MINIMAL_VALIDATION;

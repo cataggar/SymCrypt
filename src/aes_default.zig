@@ -39,6 +39,8 @@ extern fn SymCryptAesDecryptNeon(pExpandedKey: PCSYMCRYPT_AES_EXPANDED_KEY, pbSr
 
 extern fn SymCryptAesEcbEncryptXmm(pExpandedKey: PCSYMCRYPT_AES_EXPANDED_KEY, pbSrc: PCBYTE, pbDst: PBYTE, cbData: SIZE_T) callconv(types.SYMCRYPT_CALL) void;
 extern fn SymCryptAesEcbEncryptNeon(pExpandedKey: PCSYMCRYPT_AES_EXPANDED_KEY, pbSrc: PCBYTE, pbDst: PBYTE, cbData: SIZE_T) callconv(types.SYMCRYPT_CALL) void;
+extern fn SymCryptAesEcbDecryptXmm(pExpandedKey: PCSYMCRYPT_AES_EXPANDED_KEY, pbSrc: PCBYTE, pbDst: PBYTE, cbData: SIZE_T) callconv(types.SYMCRYPT_CALL) void;
+extern fn SymCryptAesEcbDecryptNeon(pExpandedKey: PCSYMCRYPT_AES_EXPANDED_KEY, pbSrc: PCBYTE, pbDst: PBYTE, cbData: SIZE_T) callconv(types.SYMCRYPT_CALL) void;
 
 extern fn SymCryptAesCbcEncryptXmm(pExpandedKey: PCSYMCRYPT_AES_EXPANDED_KEY, pbChainingValue: PBYTE, pbSrc: PCBYTE, pbDst: PBYTE, cbData: SIZE_T) callconv(types.SYMCRYPT_CALL) void;
 extern fn SymCryptAesCbcEncryptNeon(pExpandedKey: PCSYMCRYPT_AES_EXPANDED_KEY, pbChainingValue: PBYTE, pbSrc: PCBYTE, pbDst: PBYTE, cbData: SIZE_T) callconv(types.SYMCRYPT_CALL) void;
@@ -328,15 +330,32 @@ pub export fn SymCryptAesEcbDecrypt(
     pbDst: PBYTE,
     cbData: SIZE_T,
 ) callconv(types.SYMCRYPT_CALL) void {
-    var src = pbSrc;
-    var dst = pbDst;
-    var remaining = cbData;
-
-    while (remaining >= types.SYMCRYPT_AES_BLOCK_SIZE) {
-        SymCryptAesDecrypt(pExpandedKey, src, dst);
-        src += types.SYMCRYPT_AES_BLOCK_SIZE;
-        dst += types.SYMCRYPT_AES_BLOCK_SIZE;
-        remaining -= types.SYMCRYPT_AES_BLOCK_SIZE;
+    if (comptime types.CPU_AMD64) {
+        if (macros.CPU_FEATURES_PRESENT(types.SYMCRYPT_CPU_FEATURES_FOR_AESNI_CODE)) {
+            SymCryptAesEcbDecryptXmm(pExpandedKey, pbSrc, pbDst, cbData);
+        } else {
+            aes_asm.SymCryptAesEcbDecryptAsm(pExpandedKey, pbSrc, pbDst, cbData);
+        }
+    } else if (comptime types.CPU_X86) {
+        var SaveData: types.SYMCRYPT_EXTENDED_SAVE_DATA = undefined;
+        if (macros.CPU_FEATURES_PRESENT(types.SYMCRYPT_CPU_FEATURES_FOR_AESNI_CODE) and
+            macros.SymCryptSaveXmm(&SaveData) == .SYMCRYPT_NO_ERROR)
+        {
+            SymCryptAesEcbDecryptXmm(pExpandedKey, pbSrc, pbDst, cbData);
+            macros.SymCryptRestoreXmm(&SaveData);
+        } else {
+            aes_asm.SymCryptAesEcbDecryptAsm(pExpandedKey, pbSrc, pbDst, cbData);
+        }
+    } else if (comptime types.CPU_ARM) {
+        aes_asm.SymCryptAesEcbDecryptAsm(pExpandedKey, pbSrc, pbDst, cbData);
+    } else if (comptime types.CPU_ARM64) {
+        if (macros.CPU_FEATURES_PRESENT(types.SYMCRYPT_CPU_FEATURE_NEON_AES)) {
+            SymCryptAesEcbDecryptNeon(pExpandedKey, pbSrc, pbDst, cbData);
+        } else {
+            aes_c.SymCryptAesEcbDecryptC(pExpandedKey, pbSrc, pbDst, cbData);
+        }
+    } else {
+        aes_c.SymCryptAesEcbDecryptC(pExpandedKey, pbSrc, pbDst, cbData);
     }
 }
 

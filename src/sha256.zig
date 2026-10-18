@@ -391,6 +391,7 @@ pub export fn SymCryptSha256AppendBlocks_ul1(
     var cbData = cbData_in;
     var W: [16]UINT32 align(SYMCRYPT_ALIGN_VALUE) = undefined;
     var ah: [8]UINT32 align(SYMCRYPT_ALIGN_VALUE) = undefined;
+    @setEvalBranchQuota(10000);
 
     while (cbData >= 64) {
         ah[7] = pChain.H[0];
@@ -421,8 +422,7 @@ pub export fn SymCryptSha256AppendBlocks_ul1(
         iround(&ah, &W, pbData, 15);
 
         // Rounds 16 to 63
-        var round: usize = 16;
-        while (round < 64) : (round += 16) {
+        inline for ([_]usize{ 16, 32, 48 }) |round| {
             fround(&ah, &W, 0, round);
             fround(&ah, &W, 1, round);
             fround(&ah, &W, 2, round);
@@ -469,11 +469,6 @@ const V4U32 = @Vector(4, u32);
 const V4I32 = @Vector(4, i32);
 const V16U8 = @Vector(16, u8);
 
-extern fn @"llvm.x86.ssse3.pshuf.b.128"(a: V16U8, b: V16U8) V16U8;
-extern fn @"llvm.x86.sha256rnds2"(a: V4I32, b: V4I32, k: V4I32) V4I32;
-extern fn @"llvm.x86.sha256msg1"(a: V4I32, b: V4I32) V4I32;
-extern fn @"llvm.x86.sha256msg2"(a: V4I32, b: V4I32) V4I32;
-
 inline fn mmLoaduSi128(ptr: PCBYTE) V4U32 {
     return @bitCast(std.mem.readInt(u128, ptr[0..16], .little));
 }
@@ -482,7 +477,7 @@ inline fn mmStoreuSi128(ptr: [*]u8, v: V4U32) void {
     std.mem.writeInt(u128, ptr[0..16], @bitCast(v), .little);
 }
 
-inline fn loadSha256K4(r: usize) V4U32 {
+inline fn loadSha256K4(comptime r: usize) V4U32 {
     return V4U32{
         SymCryptSha256K[r + 0],
         SymCryptSha256K[r + 1],
@@ -530,20 +525,43 @@ inline fn mmAlignrEpi8(a: V4U32, b: V4U32, comptime count: u8) V4U32 {
     return @bitCast(ab);
 }
 
-inline fn mmShuffleEpi8(a: V4U32, mask: V16U8) V4U32 {
-    return @bitCast(@"llvm.x86.ssse3.pshuf.b.128"(@bitCast(a), mask));
+inline fn bswapVec4U32(v: V4U32) V4U32 {
+    const bytes: V16U8 = @bitCast(v);
+    const rev = @shuffle(u8, bytes, undefined, [16]i32{
+        3,  2,  1,  0,
+        7,  6,  5,  4,
+        11, 10, 9,  8,
+        15, 14, 13, 12,
+    });
+    return @bitCast(rev);
 }
 
 inline fn mmSha256rnds2Epu32(a: V4U32, b: V4U32, k: V4U32) V4U32 {
-    return @bitCast(@"llvm.x86.sha256rnds2"(@bitCast(a), @bitCast(b), @bitCast(k)));
+    var res = a;
+    asm ("sha256rnds2 %%xmm0, %[b], %[res]"
+        : [res] "+x" (res),
+        : [b] "x" (b),
+          [k] "{xmm0}" (k),
+    );
+    return res;
 }
 
 inline fn mmSha256msg1Epu32(a: V4U32, b: V4U32) V4U32 {
-    return @bitCast(@"llvm.x86.sha256msg1"(@bitCast(a), @bitCast(b)));
+    var res = a;
+    asm ("sha256msg1 %[b], %[res]"
+        : [res] "+x" (res),
+        : [b] "x" (b),
+    );
+    return res;
 }
 
 inline fn mmSha256msg2Epu32(a: V4U32, b: V4U32) V4U32 {
-    return @bitCast(@"llvm.x86.sha256msg2"(@bitCast(a), @bitCast(b)));
+    var res = a;
+    asm ("sha256msg2 %[b], %[res]"
+        : [res] "+x" (res),
+        : [b] "x" (b),
+    );
+    return res;
 }
 
 inline fn sha256AppendBlocksShani(
@@ -555,8 +573,6 @@ inline fn sha256AppendBlocksShani(
     @setRuntimeSafety(false);
     var pbData = pbData_in;
     var cbData = cbData_in;
-
-    const byte_reverse_32 = V16U8{ 3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12 };
 
     // Load initial values:
     // DCBA = (D, C, B, A), HGFE = (H, G, F, E)
@@ -571,10 +587,10 @@ inline fn sha256AppendBlocksShani(
         const abef_save = abef;
         const cdgh_save = cdgh;
 
-        var w0 = mmShuffleEpi8(mmLoaduSi128(pbData + 0), byte_reverse_32);
-        var w1 = mmShuffleEpi8(mmLoaduSi128(pbData + 16), byte_reverse_32);
-        var w2 = mmShuffleEpi8(mmLoaduSi128(pbData + 32), byte_reverse_32);
-        var w3 = mmShuffleEpi8(mmLoaduSi128(pbData + 48), byte_reverse_32);
+        var w0 = bswapVec4U32(mmLoaduSi128(pbData + 0));
+        var w1 = bswapVec4U32(mmLoaduSi128(pbData + 16));
+        var w2 = bswapVec4U32(mmLoaduSi128(pbData + 32));
+        var w3 = bswapVec4U32(mmLoaduSi128(pbData + 48));
 
         // Rounds 0 - 3
         var m0 = w0 +% loadSha256K4(0);
@@ -605,8 +621,7 @@ inline fn sha256AppendBlocksShani(
         w0 = mmSha256msg2Epu32(w0, w3);
         w2 = mmSha256msg1Epu32(w2, w3);
 
-        var r: usize = 16;
-        while (r < 48) : (r += 16) {
+        inline for ([_]usize{ 16, 32 }) |r| {
             // Rounds r .. r+3
             m0 = w0 +% loadSha256K4(r);
             cdgh = mmSha256rnds2Epu32(cdgh, abef, m0);
@@ -696,9 +711,7 @@ inline fn sha256AppendBlocksShani(
 }
 
 comptime {
-    if ((builtin.cpu.arch == .x86_64 or builtin.cpu.arch == .x86) and
-        std.Target.x86.featureSetHasAll(builtin.cpu.features, .{ .sha, .ssse3 }))
-    {
+    if (builtin.cpu.arch == .x86_64 or builtin.cpu.arch == .x86) {
         @export(&SymCryptSha256AppendBlocks_shani, .{ .name = "SymCryptSha256AppendBlocks_shani" });
     }
 }
@@ -716,20 +729,51 @@ fn SymCryptSha256AppendBlocks_shani(
 // ARM64 SHA256 Crypto Extension Implementation
 // ============================================================================
 
-extern fn @"llvm.aarch64.crypto.sha256h"(hash_abcd: V4U32, hash_efgh: V4U32, wk: V4U32) V4U32;
-extern fn @"llvm.aarch64.crypto.sha256h2"(hash_efgh: V4U32, hash_abcd: V4U32, wk: V4U32) V4U32;
-extern fn @"llvm.aarch64.crypto.sha256su0"(w0_3: V4U32, w4_7: V4U32) V4U32;
-extern fn @"llvm.aarch64.crypto.sha256su1"(tw0_3: V4U32, w8_11: V4U32, w12_15: V4U32) V4U32;
+inline fn arm64Sha256h(hash_abcd: V4U32, hash_efgh: V4U32, wk: V4U32) V4U32 {
+    var res = hash_abcd;
+    asm (
+        \\.arch armv8-a+crypto
+        \\sha256h %[abcd:q], %[efgh:q], %[wk].4s
+        : [abcd] "+w" (res),
+        : [efgh] "w" (hash_efgh),
+          [wk] "w" (wk),
+    );
+    return res;
+}
 
-inline fn arm64Rev32(v: V4U32) V4U32 {
-    const bytes: V16U8 = @bitCast(v);
-    const rev = @shuffle(u8, bytes, undefined, [16]i32{
-        3,  2,  1,  0,
-        7,  6,  5,  4,
-        11, 10, 9,  8,
-        15, 14, 13, 12,
-    });
-    return @bitCast(rev);
+inline fn arm64Sha256h2(hash_efgh: V4U32, hash_abcd: V4U32, wk: V4U32) V4U32 {
+    var res = hash_efgh;
+    asm (
+        \\.arch armv8-a+crypto
+        \\sha256h2 %[efgh:q], %[abcd:q], %[wk].4s
+        : [efgh] "+w" (res),
+        : [abcd] "w" (hash_abcd),
+          [wk] "w" (wk),
+    );
+    return res;
+}
+
+inline fn arm64Sha256su0(w0_3: V4U32, w4_7: V4U32) V4U32 {
+    var res = w0_3;
+    asm (
+        \\.arch armv8-a+crypto
+        \\sha256su0 %[w0_3].4s, %[w4_7].4s
+        : [w0_3] "+w" (res),
+        : [w4_7] "w" (w4_7),
+    );
+    return res;
+}
+
+inline fn arm64Sha256su1(tw0_3: V4U32, w8_11: V4U32, w12_15: V4U32) V4U32 {
+    var res = tw0_3;
+    asm (
+        \\.arch armv8-a+crypto
+        \\sha256su1 %[tw0_3].4s, %[w8_11].4s, %[w12_15].4s
+        : [tw0_3] "+w" (res),
+        : [w8_11] "w" (w8_11),
+          [w12_15] "w" (w12_15),
+    );
+    return res;
 }
 
 inline fn sha256AppendBlocksInstr(
@@ -749,69 +793,68 @@ inline fn sha256AppendBlocksInstr(
     var efgh_orig = efgh;
 
     while (cbData >= 64) {
-        var m0 = arm64Rev32(mmLoaduSi128(pbData + 0));
-        var m1 = arm64Rev32(mmLoaduSi128(pbData + 16));
-        var m2 = arm64Rev32(mmLoaduSi128(pbData + 32));
-        var m3 = arm64Rev32(mmLoaduSi128(pbData + 48));
+        var m0 = bswapVec4U32(mmLoaduSi128(pbData + 0));
+        var m1 = bswapVec4U32(mmLoaduSi128(pbData + 16));
+        var m2 = bswapVec4U32(mmLoaduSi128(pbData + 32));
+        var m3 = bswapVec4U32(mmLoaduSi128(pbData + 48));
 
-        var r: usize = 0;
-        while (r < 48) : (r += 16) {
+        inline for ([_]usize{ 0, 16, 32 }) |r| {
             // Rounds r .. r+3
             var wk = m0 +% loadSha256K4(r);
-            m0 = @"llvm.aarch64.crypto.sha256su0"(m0, m1);
+            m0 = arm64Sha256su0(m0, m1);
             var htmp = abcd;
-            abcd = @"llvm.aarch64.crypto.sha256h"(abcd, efgh, wk);
-            efgh = @"llvm.aarch64.crypto.sha256h2"(efgh, htmp, wk);
-            m0 = @"llvm.aarch64.crypto.sha256su1"(m0, m2, m3);
+            abcd = arm64Sha256h(abcd, efgh, wk);
+            efgh = arm64Sha256h2(efgh, htmp, wk);
+            m0 = arm64Sha256su1(m0, m2, m3);
 
             // Rounds r+4 .. r+7
             wk = m1 +% loadSha256K4(r + 4);
-            m1 = @"llvm.aarch64.crypto.sha256su0"(m1, m2);
+            m1 = arm64Sha256su0(m1, m2);
             htmp = abcd;
-            abcd = @"llvm.aarch64.crypto.sha256h"(abcd, efgh, wk);
-            efgh = @"llvm.aarch64.crypto.sha256h2"(efgh, htmp, wk);
-            m1 = @"llvm.aarch64.crypto.sha256su1"(m1, m3, m0);
+            abcd = arm64Sha256h(abcd, efgh, wk);
+            efgh = arm64Sha256h2(efgh, htmp, wk);
+            m1 = arm64Sha256su1(m1, m3, m0);
 
             // Rounds r+8 .. r+11
             wk = m2 +% loadSha256K4(r + 8);
-            m2 = @"llvm.aarch64.crypto.sha256su0"(m2, m3);
+            m2 = arm64Sha256su0(m2, m3);
             htmp = abcd;
-            abcd = @"llvm.aarch64.crypto.sha256h"(abcd, efgh, wk);
-            efgh = @"llvm.aarch64.crypto.sha256h2"(efgh, htmp, wk);
-            m2 = @"llvm.aarch64.crypto.sha256su1"(m2, m0, m1);
+            abcd = arm64Sha256h(abcd, efgh, wk);
+            efgh = arm64Sha256h2(efgh, htmp, wk);
+            m2 = arm64Sha256su1(m2, m0, m1);
 
             // Rounds r+12 .. r+15
             wk = m3 +% loadSha256K4(r + 12);
-            m3 = @"llvm.aarch64.crypto.sha256su0"(m3, m0);
+            m3 = arm64Sha256su0(m3, m0);
             htmp = abcd;
-            abcd = @"llvm.aarch64.crypto.sha256h"(abcd, efgh, wk);
-            efgh = @"llvm.aarch64.crypto.sha256h2"(efgh, htmp, wk);
-            m3 = @"llvm.aarch64.crypto.sha256su1"(m3, m1, m2);
+            abcd = arm64Sha256h(abcd, efgh, wk);
+            efgh = arm64Sha256h2(efgh, htmp, wk);
+            m3 = arm64Sha256su1(m3, m1, m2);
         }
 
         // Rounds 48 .. 51
         var wk = m0 +% loadSha256K4(48);
         var htmp = abcd;
-        abcd = @"llvm.aarch64.crypto.sha256h"(abcd, efgh, wk);
-        efgh = @"llvm.aarch64.crypto.sha256h2"(efgh, htmp, wk);
+        abcd = arm64Sha256h(abcd, efgh, wk);
+        efgh = arm64Sha256h2(efgh, htmp, wk);
 
         // Rounds 52 .. 55
         wk = m1 +% loadSha256K4(52);
         htmp = abcd;
-        abcd = @"llvm.aarch64.crypto.sha256h"(abcd, efgh, wk);
-        efgh = @"llvm.aarch64.crypto.sha256h2"(efgh, htmp, wk);
+        abcd = arm64Sha256h(abcd, efgh, wk);
+        efgh = arm64Sha256h2(efgh, htmp, wk);
 
         // Rounds 56 .. 59
         wk = m2 +% loadSha256K4(56);
         htmp = abcd;
-        abcd = @"llvm.aarch64.crypto.sha256h"(abcd, efgh, wk);
-        efgh = @"llvm.aarch64.crypto.sha256h2"(efgh, htmp, wk);
+        abcd = arm64Sha256h(abcd, efgh, wk);
+        efgh = arm64Sha256h2(efgh, htmp, wk);
 
         // Rounds 60 .. 63
         wk = m3 +% loadSha256K4(60);
         htmp = abcd;
-        abcd = @"llvm.aarch64.crypto.sha256h"(abcd, efgh, wk);
-        efgh = @"llvm.aarch64.crypto.sha256h2"(efgh, htmp, wk);
+        abcd = arm64Sha256h(abcd, efgh, wk);
+        efgh = arm64Sha256h2(efgh, htmp, wk);
 
         abcd = abcd +% abcd_orig;
         efgh = efgh +% efgh_orig;
@@ -830,9 +873,7 @@ inline fn sha256AppendBlocksInstr(
 }
 
 comptime {
-    if (builtin.cpu.arch == .aarch64 and
-        std.Target.aarch64.featureSetHas(builtin.cpu.features, .sha2))
-    {
+    if (builtin.cpu.arch == .aarch64) {
         @export(&SymCryptSha256AppendBlocks_instr, .{ .name = "SymCryptSha256AppendBlocks_instr" });
     }
 }
@@ -863,12 +904,10 @@ pub export fn SymCryptSha256AppendBlocks(
 
     if (comptime builtin.cpu.arch == .x86_64) {
         var saveData: SYMCRYPT_EXTENDED_SAVE_DATA = undefined;
-        if (comptime std.Target.x86.featureSetHasAll(builtin.cpu.features, .{ .sha, .ssse3 })) {
-            if (cpuFeaturesPresent(SYMCRYPT_CPU_FEATURES_FOR_SHANI_CODE) and SymCryptSaveXmm(&saveData) == .SYMCRYPT_NO_ERROR) {
-                SymCryptSha256AppendBlocks_shani(pChain, pbData, cbData, pcbRemaining);
-                SymCryptRestoreXmm(&saveData);
-                return;
-            }
+        if (cpuFeaturesPresent(SYMCRYPT_CPU_FEATURES_FOR_SHANI_CODE) and SymCryptSaveXmm(&saveData) == .SYMCRYPT_NO_ERROR) {
+            SymCryptSha256AppendBlocks_shani(pChain, pbData, cbData, pcbRemaining);
+            SymCryptRestoreXmm(&saveData);
+            return;
         }
         if (cpuFeaturesPresent(SYMCRYPT_CPU_FEATURE_SSSE3 | SYMCRYPT_CPU_FEATURE_BMI2) and
             SymCryptSaveXmm(&saveData) == .SYMCRYPT_NO_ERROR)
@@ -884,14 +923,12 @@ pub export fn SymCryptSha256AppendBlocks(
         SymCryptSha256AppendBlocks_ul1(pChain, pbData, cbData, pcbRemaining);
     } else if (comptime builtin.cpu.arch == .x86) {
         var saveData: SYMCRYPT_EXTENDED_SAVE_DATA = undefined;
-        if (comptime std.Target.x86.featureSetHasAll(builtin.cpu.features, .{ .sha, .ssse3 })) {
-            if (cpuFeaturesPresent(SYMCRYPT_CPU_FEATURES_FOR_SHANI_CODE | SYMCRYPT_CPU_FEATURE_SAVEXMM_NOFAIL) and
-                SymCryptSaveXmm(&saveData) == .SYMCRYPT_NO_ERROR)
-            {
-                SymCryptSha256AppendBlocks_shani(pChain, pbData, cbData, pcbRemaining);
-                SymCryptRestoreXmm(&saveData);
-                return;
-            }
+        if (cpuFeaturesPresent(SYMCRYPT_CPU_FEATURES_FOR_SHANI_CODE | SYMCRYPT_CPU_FEATURE_SAVEXMM_NOFAIL) and
+            SymCryptSaveXmm(&saveData) == .SYMCRYPT_NO_ERROR)
+        {
+            SymCryptSha256AppendBlocks_shani(pChain, pbData, cbData, pcbRemaining);
+            SymCryptRestoreXmm(&saveData);
+            return;
         }
         if (cpuFeaturesPresent(SYMCRYPT_CPU_FEATURE_SSSE3 | SYMCRYPT_CPU_FEATURE_BMI2) and
             SymCryptSaveXmm(&saveData) == .SYMCRYPT_NO_ERROR)
@@ -902,11 +939,9 @@ pub export fn SymCryptSha256AppendBlocks(
         }
         SymCryptSha256AppendBlocks_ul1(pChain, pbData, cbData, pcbRemaining);
     } else if (comptime builtin.cpu.arch == .aarch64) {
-        if (comptime std.Target.aarch64.featureSetHas(builtin.cpu.features, .sha2)) {
-            if (cpuFeaturesPresent(SYMCRYPT_CPU_FEATURE_NEON_SHA256)) {
-                SymCryptSha256AppendBlocks_instr(pChain, pbData, cbData, pcbRemaining);
-                return;
-            }
+        if (cpuFeaturesPresent(SYMCRYPT_CPU_FEATURE_NEON_SHA256)) {
+            SymCryptSha256AppendBlocks_instr(pChain, pbData, cbData, pcbRemaining);
+            return;
         }
         SymCryptSha256AppendBlocks_ul1(pChain, pbData, cbData, pcbRemaining);
     } else {

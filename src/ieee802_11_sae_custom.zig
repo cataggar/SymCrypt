@@ -258,6 +258,7 @@ pub export fn SymCryptSswu(
     var selectionMask: UINT32 = 0;
 
     var pointBuf: [types.SYMCRYPT_SAE_MAX_EC_POINT_SIZE_BYTES]BYTE = @splat(0);
+    defer SymCryptWipe(@ptrCast(&pointBuf), @sizeOf(@TypeOf(pointBuf)));
 
     macros.SYMCRYPT_ASSERT(z < 0);
 
@@ -457,6 +458,13 @@ pub export fn SymCrypt802_11SaeCustomInit(
     var pwdSeed: [32]BYTE = @splat(0);
     var pwdValue: [32]BYTE = @splat(0);
     var pointBuf: [64]BYTE = @splat(0);
+    defer {
+        SymCryptWipe(@ptrCast(&hmacKey), @sizeOf(@TypeOf(hmacKey)));
+        SymCryptWipe(@ptrCast(&hmacState), @sizeOf(@TypeOf(hmacState)));
+        SymCryptWipe(@ptrCast(&pwdSeed), @sizeOf(@TypeOf(pwdSeed)));
+        SymCryptWipe(@ptrCast(&pwdValue), @sizeOf(@TypeOf(pwdValue)));
+        SymCryptWipe(@ptrCast(&pointBuf), @sizeOf(@TypeOf(pointBuf)));
+    }
 
     var counter: BYTE = 0;
     var foundMask: UINT32 = 0;
@@ -654,6 +662,7 @@ pub export fn SymCrypt802_11SaeCustomCreatePTGeneric(
 ) callconv(.c) SYMCRYPT_ERROR {
     var scError: SYMCRYPT_ERROR = .SYMCRYPT_NO_ERROR;
     var hkdfKey: SYMCRYPT_HKDF_EXPANDED_KEY = undefined;
+    defer SymCryptWipe(@ptrCast(&hkdfKey), @sizeOf(@TypeOf(hkdfKey)));
 
     const pGroupData = SymCryptSaeFindGroupData(group) orelse return .SYMCRYPT_INVALID_ARGUMENT;
 
@@ -822,6 +831,12 @@ pub export fn SymCrypt802_11SaeCustomInitH2EGeneric(
     var macBuffer: [16]BYTE = @splat(0);
     var hmacKey: SYMCRYPT_MAC_EXPANDED_KEY = std.mem.zeroes(SYMCRYPT_MAC_EXPANDED_KEY);
     var hmacState: SYMCRYPT_MAC_STATE = std.mem.zeroes(SYMCRYPT_MAC_STATE);
+    defer {
+        SymCryptWipe(@ptrCast(&hmacKeyBytes), @sizeOf(@TypeOf(hmacKeyBytes)));
+        SymCryptWipe(@ptrCast(&valBytes), @sizeOf(@TypeOf(valBytes)));
+        SymCryptWipe(@ptrCast(&hmacKey), @sizeOf(@TypeOf(hmacKey)));
+        SymCryptWipe(@ptrCast(&hmacState), @sizeOf(@TypeOf(hmacState)));
+    }
 
     var cbScratch: SIZE_T = 0;
     var pbScratch: ?PBYTE = null;
