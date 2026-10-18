@@ -509,12 +509,8 @@ pub export fn getDynamicSymbolPointerFromString(
         switch (symbolType) {
             SCTEST_DYNSYM_FUNCTION_PTR, SCTEST_DYNSYM_ARRAY => return symbolPointer,
             SCTEST_DYNSYM_DATA_PTR => {
-                if (std.mem.eql(u8, std.mem.span(pSymbolName), "SymCryptMarvin32DefaultSeed")) {
-                    const ptr_to_ptr: *const ?*anyopaque = @ptrCast(@alignCast(symbolPointer));
-                    return ptr_to_ptr.*;
-                }
-                const fnPtr: *const fn () callconv(.c) ?*anyopaque = @ptrCast(@alignCast(symbolPointer));
-                return fnPtr();
+                const ptr_to_ptr: *const ?*anyopaque = @ptrCast(@alignCast(symbolPointer));
+                return ptr_to_ptr.*;
             },
             else => return null,
         }

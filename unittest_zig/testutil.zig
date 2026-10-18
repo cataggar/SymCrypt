@@ -4,7 +4,7 @@ const std = @import("std");
 const h = @import("main_harness.zig");
 
 const SYMCRYPT_NO_ERROR: u32 = 0;
-const SYMCRYPT_INVALID_ARGUMENT: u32 = 0x8009;
+const SYMCRYPT_INVALID_ARGUMENT: u32 = 0x800e;
 const SYMCRYPT_FLAG_GCD_INPUTS_NOT_BOTH_EVEN: u32 = 0x02;
 
 const SYMCRYPT_CODE_VERSION_API: u32 = 103;
@@ -42,21 +42,11 @@ pub fn hasDispatchSym(name: [*:0]const u8) bool {
 }
 
 fn callSymCrypt(comptime name: [*:0]const u8, comptime FnPtr: type, comptime staticFn: FnPtr, args: anytype) @typeInfo(@typeInfo(FnPtr).pointer.child).@"fn".return_type.? {
-    const StaticHolder = struct {
-        var cached_fn: ?FnPtr = null;
-        var lookup_attempted: bool = false;
-    };
-
     if (h.g_useDynamicFunctionsInTestCall != 0) {
-        if (!StaticHolder.lookup_attempted) {
-            const sym = getDynamicSymbolPointerFromString(h.g_dynamicSymCryptModuleHandle, name, SCTEST_DYNSYM_FUNCTION_PTR);
-            StaticHolder.lookup_attempted = true;
-            if (sym) |s| {
-                StaticHolder.cached_fn = @ptrCast(@alignCast(s));
-            }
-        }
-        h.check(StaticHolder.cached_fn != null, "Could not find dynamic function");
-        return @call(.auto, StaticHolder.cached_fn.?, args);
+        const sym = getDynamicSymbolPointerFromString(h.g_dynamicSymCryptModuleHandle, name, SCTEST_DYNSYM_FUNCTION_PTR);
+        h.check(sym != null, "Could not find dynamic function");
+        const fn_ptr: FnPtr = @ptrCast(@alignCast(sym.?));
+        return @call(.auto, fn_ptr, args);
     } else {
         initVectorRegisters();
         const res = @call(.auto, staticFn, args);
