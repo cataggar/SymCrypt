@@ -22,7 +22,7 @@ pub export const SymCryptAesBlockCipher_Fast: SYMCRYPT_BLOCKCIPHER = .{
         @ptrCast(&aes_default.SymCryptAesEcbEncrypt)
     else
         null,
-    .ecbDecryptFunc = if (types.CPU_X86 or types.CPU_AMD64)
+    .ecbDecryptFunc = if (types.CPU_X86 or types.CPU_AMD64 or types.CPU_ARM or types.CPU_ARM64)
         @ptrCast(&aes_default.SymCryptAesEcbDecrypt)
     else
         null,

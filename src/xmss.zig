@@ -861,6 +861,12 @@ pub export fn SymCryptXmssRandHash(
     var bitmask: [2 * SYMCRYPT_HASH_MAX_RESULT_SIZE]BYTE = undefined;
     var stateKeyed: SYMCRYPT_HASH_STATE = undefined;
     var stateMask: SYMCRYPT_HASH_STATE = undefined;
+    defer {
+        hash.SymCryptWipeKnownSize(@ptrCast(&key), @sizeOf(@TypeOf(key)));
+        hash.SymCryptWipeKnownSize(@ptrCast(&bitmask), @sizeOf(@TypeOf(bitmask)));
+        hash.SymCryptWipeKnownSize(@ptrCast(&stateKeyed), @sizeOf(@TypeOf(stateKeyed)));
+        hash.SymCryptWipeKnownSize(@ptrCast(&stateMask), @sizeOf(@TypeOf(stateMask)));
+    }
     const cbHashOutput: SIZE_T = pParams.cbHashOutput;
 
     macros.ASSERT(cbHashOutput <= SYMCRYPT_HASH_MAX_RESULT_SIZE);
@@ -961,6 +967,13 @@ pub export fn SymCryptXmssChain(
     var bm: [SYMCRYPT_HASH_MAX_RESULT_SIZE]BYTE = undefined;
     var stateKey: SYMCRYPT_HASH_STATE = undefined;
     var stateMask: SYMCRYPT_HASH_STATE = undefined;
+    defer {
+        hash.SymCryptWipeKnownSize(@ptrCast(&tmp), @sizeOf(@TypeOf(tmp)));
+        hash.SymCryptWipeKnownSize(@ptrCast(&key), @sizeOf(@TypeOf(key)));
+        hash.SymCryptWipeKnownSize(@ptrCast(&bm), @sizeOf(@TypeOf(bm)));
+        hash.SymCryptWipeKnownSize(@ptrCast(&stateKey), @sizeOf(@TypeOf(stateKey)));
+        hash.SymCryptWipeKnownSize(@ptrCast(&stateMask), @sizeOf(@TypeOf(stateMask)));
+    }
     const cbHashOutput: SIZE_T = pParams.cbHashOutput;
 
     @memcpy(tmp[0..cbHashOutput], pbInput[0..cbHashOutput]);
@@ -1743,9 +1756,11 @@ pub export fn SymCryptXmssVerify(
     pbSignature: ?PCBYTE,
     cbSignature: SIZE_T,
 ) callconv(SYMCRYPT_CALL) SYMCRYPT_ERROR {
-    if ((@atomicLoad(UINT32, &g_SymCryptFipsSelftestsPerformed, .unordered) & SYMCRYPT_SELFTEST_ALGORITHM_XMSS) == 0) {
-        SymCryptXmssSelftest();
-        _ = @atomicRmw(UINT32, &g_SymCryptFipsSelftestsPerformed, .Or, SYMCRYPT_SELFTEST_ALGORITHM_XMSS, .monotonic);
+    if (types.DO_FIPS_SELFTESTS) {
+        if ((@atomicLoad(UINT32, &g_SymCryptFipsSelftestsPerformed, .unordered) & SYMCRYPT_SELFTEST_ALGORITHM_XMSS) == 0) {
+            SymCryptXmssSelftest();
+            _ = @atomicRmw(UINT32, &g_SymCryptFipsSelftestsPerformed, .Or, SYMCRYPT_SELFTEST_ALGORITHM_XMSS, .monotonic);
+        }
     }
 
     return SymCryptXmssVerifyInternal(

@@ -1035,7 +1035,77 @@ pub export fn scTestRunStatusAndServiceIndicatorTests(printIndicator: u32) callc
 }
 
 pub export fn scTestRunPerfTestsCpp() callconv(.c) void {
-    perf.measurePerf();
+    if (mh.g_noPerfTests != 0) return;
+
+    const reps: usize = @max(1, mh.g_measure_sizes_repetitions);
+    for (0..reps) |_| {
+        perf.measurePerf();
+    }
+
+    mh.zprint(
+        "Unit of performance measurement: {s}\n    frequency = {d:4.0} MHz (using std::chrono)\n",
+        .{ std.mem.span(perf.g_perfUnits), perf.g_tscFreq / 1e6 },
+    );
+
+    const ptPerf = pt.scTestPrintTableCreate();
+    defer pt.scTestPrintTableDestroy(ptPerf);
+
+    for (g_algImps.items) |imp| {
+        for (imp.perf_infos.items) |*j| {
+            var nameBuf: [256]u8 = undefined;
+            var pos: usize = 0;
+            const part0 = std.fmt.bufPrint(nameBuf[pos..], "{s}{s}", .{ imp.algorithm_name, imp.modeName }) catch unreachable;
+            pos += part0.len;
+
+            if (j.keySize > 0) {
+                var ks: u32 = @truncate(j.keySize & 0xffff);
+                if (!std.mem.startsWith(u8, imp.algorithm_name, "MlDsa") and
+                    !std.mem.startsWith(u8, imp.algorithm_name, "MlKem") and
+                    !std.mem.startsWith(u8, imp.algorithm_name, "CompositeMlDsa") and
+                    !std.mem.startsWith(u8, imp.algorithm_name, "CompositeMlKem"))
+                {
+                    ks *= 8;
+                }
+                const partKs = std.fmt.bufPrint(nameBuf[pos..], "-{d: >5}", .{ks}) catch unreachable;
+                pos += partKs.len;
+            }
+            if (j.postfix_len > 0) {
+                const partPf = std.fmt.bufPrint(nameBuf[pos..], " {s}", .{j.postfix[0..j.postfix_len]}) catch unreachable;
+                pos += partPf.len;
+            }
+            pt.scTestPrintTableAddItemPerf(
+                ptPerf,
+                &nameBuf,
+                pos,
+                imp.implementation_name.ptr,
+                imp.implementation_name.len,
+                j.cPerByte,
+                j.cOverhead,
+                j.cRange,
+            );
+        }
+    }
+
+    if (mh.isAlgFilterMatch("Wipe")) {
+        const ptWipe = pt.scTestPrintTableCreate();
+        defer pt.scTestPrintTableDestroy(ptWipe);
+        for (0..perf.PERF_WIPE_N_OFFSETS) |offset| {
+            for (0..perf.PERF_WIPE_MAX_SIZE + 1) |len| {
+                var rowBuf: [20]u8 = undefined;
+                var colBuf: [20]u8 = undefined;
+                var itemBuf: [20]u8 = undefined;
+                const row = std.fmt.bufPrint(&rowBuf, "{d: >2}", .{len}) catch unreachable;
+                const col = std.fmt.bufPrint(&colBuf, "{d: >2}", .{offset}) catch unreachable;
+                const item = std.fmt.bufPrint(&itemBuf, "{d: >3.0}", .{perf.g_wipePerf[len][offset]}) catch unreachable;
+                pt.scTestPrintTableAddItemStr(ptWipe, row.ptr, row.len, col.ptr, col.len, item.ptr, item.len);
+            }
+        }
+        const wipeHeading = "Wipe performance for each len & alignment";
+        pt.scTestPrintTablePrint(ptWipe, wipeHeading.ptr, wipeHeading.len);
+    }
+
+    const perfHeading = "Performance for n-byte message/key";
+    pt.scTestPrintTablePrint(ptPerf, perfHeading.ptr, perfHeading.len);
 }
 
 const Timespec = extern struct {
@@ -1080,6 +1150,236 @@ pub export fn scTestAlgImpGetImpName(pImp: *anyopaque, outPtr: *[*]const u8) cal
     return imp.impName.len;
 }
 
+var g_activePerfImp: ?*AlgImp = null;
+var g_activePerfXtsDataUnit: usize = 512;
+var g_activePerfMlKemKey: ?*anyopaque = null;
+var g_activePerfMlKemCtLen: usize = 0;
+var g_activePerfMlDsaKey: ?*anyopaque = null;
+var g_activePerfMlDsaSigLen: usize = 0;
+
+extern fn SymCryptMlKemkeyAllocate(params: u32) callconv(.c) ?*anyopaque;
+extern fn SymCryptMlKemkeyFree(pkMlKemkey: *anyopaque) callconv(.c) void;
+extern fn SymCryptMlKemkeyGenerate(pkMlKemkey: *anyopaque, flags: u32) callconv(.c) i32;
+extern fn SymCryptMlKemEncapsulate(pkMlKemkey: *const anyopaque, pbAgreedSecret: [*]u8, cbAgreedSecret: usize, pbCiphertext: [*]u8, cbCiphertext: usize) callconv(.c) i32;
+extern fn SymCryptMlKemDecapsulate(pkMlKemkey: *const anyopaque, pbCiphertext: [*]const u8, cbCiphertext: usize, pbAgreedSecret: [*]u8, cbAgreedSecret: usize) callconv(.c) i32;
+
+extern fn SymCryptMlDsakeyAllocate(params: u32) callconv(.c) ?*anyopaque;
+extern fn SymCryptMlDsakeyFree(pkMlDsakey: *anyopaque) callconv(.c) void;
+extern fn SymCryptMlDsakeyGenerate(pkMlDsakey: *anyopaque, flags: u32) callconv(.c) i32;
+extern fn SymCryptMlDsaSign(pkMlDsakey: *const anyopaque, pbInput: ?[*]const u8, cbInput: usize, pbContext: ?[*]const u8, cbContext: usize, flags: u32, pbSignature: [*]u8, cbSignature: usize) callconv(.c) i32;
+extern fn SymCryptMlDsaVerify(pkMlDsakey: *const anyopaque, pbInput: ?[*]const u8, cbInput: usize, pbContext: ?[*]const u8, cbContext: usize, pbSignature: [*]const u8, cbSignature: usize, flags: u32) callconv(.c) i32;
+
+fn perfHashKeyFn(b1: [*]u8, _: [*]u8, _: [*]u8, _: usize) callconv(.c) void {
+    const imp = g_activePerfImp orelse return;
+    doHashInit(imp.imp_kind, imp.hash_state.kind, b1);
+}
+
+fn perfHashDataFn(b1: [*]u8, b2: [*]u8, b3: [*]u8, dataSize: usize) callconv(.c) void {
+    const imp = g_activePerfImp orelse return;
+    doHashAppend(imp.imp_kind, imp.hash_state.kind, b1, b2, dataSize);
+    doHashResult(imp.imp_kind, imp.hash_state.kind, b1, b3);
+}
+
+fn perfHashCleanFn(b1: [*]u8, _: [*]u8, _: [*]u8) callconv(.c) void {
+    sc.SymCryptWipe(b1, 256);
+}
+
+fn perfXofKeyFn(b1: [*]u8, _: [*]u8, _: [*]u8, _: usize) callconv(.c) void {
+    const imp = g_activePerfImp orelse return;
+    switch (imp.xof_state.kind) {
+        .Shake128 => callSym(imp.imp_kind, "SymCryptShake128Init", sc.SymCryptShake128Init, .{@as(*anyopaque, b1)}),
+        .Shake256 => callSym(imp.imp_kind, "SymCryptShake256Init", sc.SymCryptShake256Init, .{@as(*anyopaque, b1)}),
+    }
+}
+
+fn perfXofDataFn(b1: [*]u8, b2: [*]u8, b3: [*]u8, dataSize: usize) callconv(.c) void {
+    const imp = g_activePerfImp orelse return;
+    switch (imp.xof_state.kind) {
+        .Shake128 => {
+            callSym(imp.imp_kind, "SymCryptShake128Append", sc.SymCryptShake128Append, .{ @as(*anyopaque, b1), b2, dataSize });
+            callSym(imp.imp_kind, "SymCryptShake128Result", sc.SymCryptShake128Result, .{ @as(*anyopaque, b1), b3 });
+        },
+        .Shake256 => {
+            callSym(imp.imp_kind, "SymCryptShake256Append", sc.SymCryptShake256Append, .{ @as(*anyopaque, b1), b2, dataSize });
+            callSym(imp.imp_kind, "SymCryptShake256Result", sc.SymCryptShake256Result, .{ @as(*anyopaque, b1), b3 });
+        },
+    }
+}
+
+fn perfBcKeyFn(_: [*]u8, b2: [*]u8, _: [*]u8, keySize: usize) callconv(.c) void {
+    const imp = g_activePerfImp orelse return;
+    _ = scTestBlockCipherSetKey(imp, b2, keySize);
+}
+
+fn perfBcDataFn(_: [*]u8, b2: [*]u8, b3: [*]u8, dataSize: usize) callconv(.c) void {
+    const imp = g_activePerfImp orelse return;
+    const chainLen = scTestBlockCipherChainBlockLen(imp);
+    scTestBlockCipherEncrypt(imp, b2 + (perf.PERF_BUFFER_SIZE / 2), chainLen, b2, b3, dataSize);
+}
+
+fn perfBcDecryptFn(_: [*]u8, b2: [*]u8, b3: [*]u8, dataSize: usize) callconv(.c) void {
+    const imp = g_activePerfImp orelse return;
+    const chainLen = scTestBlockCipherChainBlockLen(imp);
+    scTestBlockCipherDecrypt(imp, b2 + (perf.PERF_BUFFER_SIZE / 2), chainLen, b2, b3, dataSize);
+}
+
+fn perfAuthEncKeyFn(_: [*]u8, b2: [*]u8, _: [*]u8, keySize: usize) callconv(.c) void {
+    const imp = g_activePerfImp orelse return;
+    _ = scTestAuthEncSetKey(imp, b2, keySize);
+}
+
+fn perfAuthEncDataFn(_: [*]u8, b2: [*]u8, b3: [*]u8, dataSize: usize) callconv(.c) void {
+    const imp = g_activePerfImp orelse return;
+    _ = scTestAuthEncEncrypt(imp, b2, 12, null, 0, b2 + 16, b3 + 16, dataSize, b3, 16, 0);
+}
+
+fn perfAuthEncDecryptFn(_: [*]u8, b2: [*]u8, b3: [*]u8, dataSize: usize) callconv(.c) void {
+    const imp = g_activePerfImp orelse return;
+    _ = scTestAuthEncDecrypt(imp, b2, 12, null, 0, b3 + 16, b2 + 16, dataSize, b3, 16, 0);
+}
+
+fn perfMacKeyFn(_: [*]u8, b2: [*]u8, _: [*]u8, keySize: usize) callconv(.c) void {
+    const imp = g_activePerfImp orelse return;
+    const ks = if (imp.mac_state.kind == .Poly1305 or imp.mac_state.kind == .RefPoly1305) 32 else keySize;
+    _ = scTestMacImpInit(imp, b2, ks);
+}
+
+fn perfMacDataFn(_: [*]u8, b2: [*]u8, b3: [*]u8, dataSize: usize) callconv(.c) void {
+    const imp = g_activePerfImp orelse return;
+    const ms = &imp.mac_state;
+    const ik = imp.imp_kind;
+    switch (ms.kind) {
+        .RefPoly1305 => {
+            ref_imp.RefPoly1305Init(&ms.ref_poly, b2);
+            ref_imp.RefPoly1305Append(&ms.ref_poly, b2, dataSize);
+            ref_imp.RefPoly1305Result(&ms.ref_poly, b3);
+        },
+        .Poly1305 => callSym(ik, "SymCryptPoly1305", sc.SymCryptPoly1305, .{ b2, b2, dataSize, b3 }),
+        .Marvin32 => callSym(ik, "SymCryptMarvin32", sc.SymCryptMarvin32, .{ &ms.key1, b2, dataSize, b3 }),
+        .AesCmac => callSym(ik, "SymCryptAesCmac", sc.SymCryptAesCmac, .{ &ms.key1, b2, dataSize, b3 }),
+        .HmacMd5 => callSym(ik, "SymCryptHmacMd5", sc.SymCryptHmacMd5, .{ &ms.key1, b2, dataSize, b3 }),
+        .HmacSha1 => callSym(ik, "SymCryptHmacSha1", sc.SymCryptHmacSha1, .{ &ms.key1, b2, dataSize, b3 }),
+        .HmacSha224 => callSym(ik, "SymCryptHmacSha224", sc.SymCryptHmacSha224, .{ &ms.key1, b2, dataSize, b3 }),
+        .HmacSha256 => callSym(ik, "SymCryptHmacSha256", sc.SymCryptHmacSha256, .{ &ms.key1, b2, dataSize, b3 }),
+        .HmacSha384 => callSym(ik, "SymCryptHmacSha384", sc.SymCryptHmacSha384, .{ &ms.key1, b2, dataSize, b3 }),
+        .HmacSha512 => callSym(ik, "SymCryptHmacSha512", sc.SymCryptHmacSha512, .{ &ms.key1, b2, dataSize, b3 }),
+        .HmacSha512_224 => callSym(ik, "SymCryptHmacSha512_224", sc.SymCryptHmacSha512_224, .{ &ms.key1, b2, dataSize, b3 }),
+        .HmacSha512_256 => callSym(ik, "SymCryptHmacSha512_256", sc.SymCryptHmacSha512_256, .{ &ms.key1, b2, dataSize, b3 }),
+        .HmacSha3_224 => callSym(ik, "SymCryptHmacSha3_224", sc.SymCryptHmacSha3_224, .{ &ms.key1, b2, dataSize, b3 }),
+        .HmacSha3_256 => callSym(ik, "SymCryptHmacSha3_256", sc.SymCryptHmacSha3_256, .{ &ms.key1, b2, dataSize, b3 }),
+        .HmacSha3_384 => callSym(ik, "SymCryptHmacSha3_384", sc.SymCryptHmacSha3_384, .{ &ms.key1, b2, dataSize, b3 }),
+        .HmacSha3_512 => callSym(ik, "SymCryptHmacSha3_512", sc.SymCryptHmacSha3_512, .{ &ms.key1, b2, dataSize, b3 }),
+    }
+}
+
+fn perfXtsKeyFn(_: [*]u8, b2: [*]u8, _: [*]u8, keySize: usize) callconv(.c) void {
+    const imp = g_activePerfImp orelse return;
+    const actualKeySize = keySize & ~@as(usize, 0xff000000);
+    g_activePerfXtsDataUnit = if ((keySize & 0xff000000) == 0x40000000) 4096 else 512;
+    _ = scTestXtsSetKey(imp, b2, actualKeySize, types.SYMCRYPT_FLAG_KEY_NO_FIPS);
+}
+
+fn perfXtsDataFn(_: [*]u8, b2: [*]u8, b3: [*]u8, dataSize: usize) callconv(.c) void {
+    const imp = g_activePerfImp orelse return;
+    const du = @min(g_activePerfXtsDataUnit, dataSize);
+    _ = scTestXtsEncrypt(imp, du, 0, b2, b3, dataSize);
+}
+
+fn perfXtsDecryptFn(_: [*]u8, b2: [*]u8, b3: [*]u8, dataSize: usize) callconv(.c) void {
+    const imp = g_activePerfImp orelse return;
+    const du = @min(g_activePerfXtsDataUnit, dataSize);
+    _ = scTestXtsDecrypt(imp, du, 0, b2, b3, dataSize);
+}
+
+fn perfStreamKeyFn(_: [*]u8, b2: [*]u8, _: [*]u8, keySize: usize) callconv(.c) void {
+    const imp = g_activePerfImp orelse return;
+    _ = scTestStreamCipherSetKey(imp, b2, keySize);
+}
+
+fn perfStreamDataFn(_: [*]u8, b2: [*]u8, b3: [*]u8, dataSize: usize) callconv(.c) void {
+    const imp = g_activePerfImp orelse return;
+    scTestStreamCipherEncrypt(imp, b2, b3, dataSize);
+}
+
+fn perfMlKemKeyFn(_: [*]u8, _: [*]u8, b3: [*]u8, keySize: usize) callconv(.c) void {
+    if (g_activePerfMlKemKey) |oldKey| {
+        SymCryptMlKemkeyFree(oldKey);
+        g_activePerfMlKemKey = null;
+    }
+    const params: u32 = switch (keySize & 0xff) {
+        1 => 1,
+        2 => 2,
+        3 => 3,
+        else => 2,
+    };
+    g_activePerfMlKemCtLen = switch (params) {
+        1 => 768,
+        2 => 1088,
+        else => 1568,
+    };
+    const pk = SymCryptMlKemkeyAllocate(params) orelse return;
+    _ = SymCryptMlKemkeyGenerate(pk, 0);
+    _ = SymCryptMlKemEncapsulate(pk, b3 + g_activePerfMlKemCtLen, 32, b3, g_activePerfMlKemCtLen);
+    g_activePerfMlKemKey = pk;
+}
+
+fn perfMlKemDataFn(_: [*]u8, _: [*]u8, b3: [*]u8, _: usize) callconv(.c) void {
+    const pk = g_activePerfMlKemKey orelse return;
+    _ = SymCryptMlKemEncapsulate(pk, b3 + g_activePerfMlKemCtLen, 32, b3, g_activePerfMlKemCtLen);
+}
+
+fn perfMlKemDecryptFn(_: [*]u8, _: [*]u8, b3: [*]u8, _: usize) callconv(.c) void {
+    const pk = g_activePerfMlKemKey orelse return;
+    var secret: [32]u8 = undefined;
+    _ = SymCryptMlKemDecapsulate(pk, b3, g_activePerfMlKemCtLen, &secret, 32);
+}
+
+fn perfMlKemCleanFn(_: [*]u8, _: [*]u8, _: [*]u8) callconv(.c) void {
+    if (g_activePerfMlKemKey) |oldKey| {
+        SymCryptMlKemkeyFree(oldKey);
+        g_activePerfMlKemKey = null;
+    }
+}
+
+fn perfMlDsaKeyFn(_: [*]u8, b2: [*]u8, b3: [*]u8, keySize: usize) callconv(.c) void {
+    if (g_activePerfMlDsaKey) |oldKey| {
+        SymCryptMlDsakeyFree(oldKey);
+        g_activePerfMlDsaKey = null;
+    }
+    const params: u32 = switch (keySize & 0xff) {
+        1 => 1,
+        2 => 2,
+        3 => 3,
+        else => 1,
+    };
+    g_activePerfMlDsaSigLen = switch (params) {
+        1 => 2420,
+        2 => 3309,
+        else => 4627,
+    };
+    const pk = SymCryptMlDsakeyAllocate(params) orelse return;
+    _ = SymCryptMlDsakeyGenerate(pk, 0);
+    _ = SymCryptMlDsaSign(pk, b2, 32, null, 0, 0, b3, g_activePerfMlDsaSigLen);
+    g_activePerfMlDsaKey = pk;
+}
+
+fn perfMlDsaDataFn(_: [*]u8, b2: [*]u8, b3: [*]u8, dataSize: usize) callconv(.c) void {
+    const pk = g_activePerfMlDsaKey orelse return;
+    _ = SymCryptMlDsaSign(pk, b2, dataSize, null, 0, 0, b3, g_activePerfMlDsaSigLen);
+}
+
+fn perfMlDsaDecryptFn(_: [*]u8, b2: [*]u8, b3: [*]u8, dataSize: usize) callconv(.c) void {
+    const pk = g_activePerfMlDsaKey orelse return;
+    _ = SymCryptMlDsaVerify(pk, b2, dataSize, null, 0, b3, g_activePerfMlDsaSigLen, 0);
+}
+
+fn perfMlDsaCleanFn(_: [*]u8, _: [*]u8, _: [*]u8) callconv(.c) void {
+    if (g_activePerfMlDsaKey) |oldKey| {
+        SymCryptMlDsakeyFree(oldKey);
+        g_activePerfMlDsaKey = null;
+    }
+}
+
 pub export fn scTestAlgImpGetPerfFunctions(
     pImp: *anyopaque,
     pKeySizeSupported: *?perf.PerfKeySizeSupportedFn,
@@ -1088,12 +1388,68 @@ pub export fn scTestAlgImpGetPerfFunctions(
     pDecryptFn: *?perf.PerfDataFn,
     pCleanFn: *?perf.PerfCleanFn,
 ) callconv(.c) void {
-    _ = pImp;
+    const imp: *AlgImp = @ptrCast(@alignCast(pImp));
+    g_activePerfImp = imp;
     pKeySizeSupported.* = null;
     pKeyFn.* = null;
     pDataFn.* = null;
     pDecryptFn.* = null;
     pCleanFn.* = null;
+
+    switch (imp.category) {
+        .Hash => {
+            pKeyFn.* = &perfHashKeyFn;
+            pDataFn.* = &perfHashDataFn;
+            pCleanFn.* = &perfHashCleanFn;
+        },
+        .Xof => {
+            pKeyFn.* = &perfXofKeyFn;
+            pDataFn.* = &perfXofDataFn;
+            pCleanFn.* = &perfHashCleanFn;
+        },
+        .BlockCipher => {
+            pKeyFn.* = &perfBcKeyFn;
+            pDataFn.* = &perfBcDataFn;
+            pDecryptFn.* = &perfBcDecryptFn;
+        },
+        .AuthEnc => {
+            pKeyFn.* = &perfAuthEncKeyFn;
+            pDataFn.* = &perfAuthEncDataFn;
+            pDecryptFn.* = &perfAuthEncDecryptFn;
+        },
+        .Mac => {
+            if (imp.mac_state.kind != .Poly1305 and imp.mac_state.kind != .RefPoly1305) {
+                pKeyFn.* = &perfMacKeyFn;
+            }
+            pDataFn.* = &perfMacDataFn;
+        },
+        .Xts => {
+            pKeyFn.* = &perfXtsKeyFn;
+            pDataFn.* = &perfXtsDataFn;
+            pDecryptFn.* = &perfXtsDecryptFn;
+        },
+        .StreamCipher => {
+            pKeyFn.* = &perfStreamKeyFn;
+            pDataFn.* = &perfStreamDataFn;
+        },
+        .Kem => {
+            if (std.mem.eql(u8, imp.algorithm_name, "MlKem")) {
+                pKeyFn.* = &perfMlKemKeyFn;
+                pDataFn.* = &perfMlKemDataFn;
+                pDecryptFn.* = &perfMlKemDecryptFn;
+                pCleanFn.* = &perfMlKemCleanFn;
+            }
+        },
+        .PqDsa => {
+            if (std.mem.eql(u8, imp.algorithm_name, "MlDsa")) {
+                pKeyFn.* = &perfMlDsaKeyFn;
+                pDataFn.* = &perfMlDsaDataFn;
+                pDecryptFn.* = &perfMlDsaDecryptFn;
+                pCleanFn.* = &perfMlDsaCleanFn;
+            }
+        },
+        else => {},
+    }
 }
 
 pub export fn scTestAlgImpAddPerfInfo(

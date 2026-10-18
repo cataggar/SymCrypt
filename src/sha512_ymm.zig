@@ -275,7 +275,7 @@ inline fn cround2Blocks(
     r: usize,
     bl: usize,
 ) void {
-    const T1: UINT64 = csigma1(e) +% ch(e, f, g) +% @as([4]UINT64, Wx[r / 2])[2 * bl + (r & 1)] +% SymCryptSha512K[r];
+    const T1: UINT64 = csigma1(e) +% ch(e, f, g) +% @as(*const [4]UINT64, @ptrCast(&Wx[r / 2]))[2 * bl + (r & 1)] +% SymCryptSha512K[r];
     const T2: UINT64 = csigma0(a) +% maj(a, b, c);
     h.* +%= T1;
     d.* +%= h.*;
@@ -518,7 +518,7 @@ inline fn cround4Blocks(
     r: usize,
     bl: usize,
 ) void {
-    const T1: UINT64 = csigma1(e) +% ch(e, f, g) +% @as([4]UINT64, Wx[r])[bl];
+    const T1: UINT64 = csigma1(e) +% ch(e, f, g) +% @as(*const [4]UINT64, @ptrCast(&Wx[r]))[bl];
     const T2: UINT64 = csigma0(a) +% maj(a, b, c);
     h.* +%= T1;
     d.* +%= h.*;

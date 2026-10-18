@@ -339,6 +339,10 @@ pub export fn SymCryptMlDsaSignEx(
     const cbContextByteArr = [1]UINT8{@intCast(cbContext)};
     var messageRepresentative: [shake.SYMCRYPT_SHAKE256_RESULT_SIZE]BYTE = undefined;
     var privateRandom: [shake.SYMCRYPT_SHAKE256_RESULT_SIZE]BYTE = undefined;
+    defer {
+        libmain.SymCryptWipeKnownSize(&privateRandom, @sizeOf(@TypeOf(privateRandom)));
+        libmain.SymCryptWipeKnownSize(&messageRepresentative, @sizeOf(@TypeOf(messageRepresentative)));
+    }
     var commitmentHash: [64]BYTE = undefined;
 
     const cbw1Encoded: UINT32 = @as(UINT32, pParams.nRows) * pParams.w1EncodeCoefficientBitLength *

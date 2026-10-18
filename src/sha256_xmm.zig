@@ -140,7 +140,7 @@ inline fn sha256MsgExpand4Blocks16Rounds(Wx: *WxArray, r: usize) void {
 }
 
 inline fn cround4Blocks(Wx: *const WxArray, ah: *[8]UINT32, comptime r16: usize, rb: usize, b: usize) void {
-    const Wt = @as([4]UINT32, Wx[rb + r16])[b];
+    const Wt = @as(*const [4]UINT32, @ptrCast(&Wx[rb + r16]))[b];
     ah[r16 & 7] +%= csigma1(ah[(r16 + 3) & 7]) +% ch(ah[(r16 + 3) & 7], ah[(r16 + 2) & 7], ah[(r16 + 1) & 7]) +% Wt;
     ah[(r16 + 4) & 7] +%= ah[r16 & 7];
     ah[r16 & 7] +%= csigma0(ah[(r16 + 7) & 7]) +% maj(ah[(r16 + 7) & 7], ah[(r16 + 6) & 7], ah[(r16 + 5) & 7]);

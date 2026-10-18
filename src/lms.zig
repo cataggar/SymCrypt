@@ -326,6 +326,7 @@ fn LmsOtskeySign(
     var en32LeafNumber: [4]BYTE = @splat(0);
     var en16Index: [2]BYTE = @splat(0);
     var abOtsPrivateKey: [SYMCRYPT_LMS_MAX_N]BYTE = @splat(0);
+    defer hash.SymCryptWipeKnownSize(@ptrCast(&abOtsPrivateKey), @sizeOf(@TypeOf(abOtsPrivateKey)));
     var abLmsHashedMessage: [SYMCRYPT_LMS_MAX_N + @sizeOf(UINT16)]BYTE = @splat(0);
     var pbDest: PBYTE = pbSignature;
 
@@ -382,6 +383,10 @@ fn LmsOtskeyComputePublic(
     var en32LeafNumber: [4]BYTE = @splat(0);
     var en16Index: [2]BYTE = @splat(0);
     var abNode: [SYMCRYPT_LMS_MAX_N]BYTE = @splat(0);
+    defer {
+        hash.SymCryptWipeKnownSize(@ptrCast(&abNode), @sizeOf(@TypeOf(abNode)));
+        hash.SymCryptWipeKnownSize(@ptrCast(&statePriv), @sizeOf(@TypeOf(statePriv)));
+    }
 
     macros.STORE_MSBFIRST32(&en32LeafNumber, nNodeIdx);
 
@@ -424,6 +429,10 @@ fn LmsComputeNodeValue(
     var abTemp: [SYMCRYPT_LMS_MAX_N]BYTE = @splat(0);
     var en32Index: [4]BYTE = @splat(0);
     var abOtsPubKey: [SYMCRYPT_LMS_MAX_N]BYTE = @splat(0);
+    defer {
+        hash.SymCryptWipeKnownSize(@ptrCast(&abTemp), @sizeOf(@TypeOf(abTemp)));
+        hash.SymCryptWipeKnownSize(@ptrCast(&abOtsPubKey), @sizeOf(@TypeOf(abOtsPubKey)));
+    }
 
     macros.ASSERT(nIndex > 0);
     macros.ASSERT(cbNodeValue == cbHashOutput);
@@ -1087,9 +1096,11 @@ pub export fn SymCryptLmsVerify(
     pbSignature: PCBYTE,
     cbSignature: SIZE_T,
 ) callconv(SYMCRYPT_CALL) SYMCRYPT_ERROR {
-    if ((@atomicLoad(UINT32, &g_SymCryptFipsSelftestsPerformed, .unordered) & SYMCRYPT_SELFTEST_ALGORITHM_LMS) == 0) {
-        SymCryptLmsSelftest();
-        _ = @atomicRmw(UINT32, &g_SymCryptFipsSelftestsPerformed, .Or, SYMCRYPT_SELFTEST_ALGORITHM_LMS, .monotonic);
+    if (types.DO_FIPS_SELFTESTS) {
+        if ((@atomicLoad(UINT32, &g_SymCryptFipsSelftestsPerformed, .unordered) & SYMCRYPT_SELFTEST_ALGORITHM_LMS) == 0) {
+            SymCryptLmsSelftest();
+            _ = @atomicRmw(UINT32, &g_SymCryptFipsSelftestsPerformed, .Or, SYMCRYPT_SELFTEST_ALGORITHM_LMS, .monotonic);
+        }
     }
 
     return SymCryptLmsVerifyInternal(

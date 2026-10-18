@@ -393,7 +393,7 @@ pub export fn SymCryptMlKemkeySetValue(
         return .SYMCRYPT_INVALID_ARGUMENT;
     }
 
-    if ((flags & SYMCRYPT_FLAG_KEY_NO_FIPS) == 0) {
+    if (types.DO_FIPS_SELFTESTS and (flags & SYMCRYPT_FLAG_KEY_NO_FIPS) == 0) {
         if ((@atomicLoad(UINT32, &g_SymCryptFipsSelftestsPerformed, .unordered) & SYMCRYPT_SELFTEST_ALGORITHM_MLKEM) == 0) {
             SymCryptMlKemSelftest();
             _ = @atomicRmw(UINT32, &g_SymCryptFipsSelftestsPerformed, .Or, SYMCRYPT_SELFTEST_ALGORITHM_MLKEM, .monotonic);

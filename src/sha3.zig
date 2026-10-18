@@ -144,11 +144,11 @@ const KeccakIotaK: [24]UINT64 = .{
     0x8000000080008081, 0x8000000000008080, 0x0000000080000001, 0x8000000080008008,
 };
 
-inline fn keccakColumnSum(state: [*]UINT64, comptime c: usize) UINT64 {
+inline fn keccakColumnSum(state: *[25]UINT64, comptime c: usize) UINT64 {
     return state[0 + c] ^ state[5 + c] ^ state[10 + c] ^ state[15 + c] ^ state[20 + c];
 }
 
-inline fn keccakColumnUpdate(state: [*]UINT64, comptime c: usize, w: UINT64) void {
+inline fn keccakColumnUpdate(state: *[25]UINT64, comptime c: usize, w: UINT64) void {
     const t: UINT64 = w;
     state[0 + c] ^= t;
     state[5 + c] ^= t;
@@ -157,7 +157,7 @@ inline fn keccakColumnUpdate(state: [*]UINT64, comptime c: usize, w: UINT64) voi
     state[20 + c] ^= t;
 }
 
-inline fn keccakTheta(state: [*]UINT64) void {
+inline fn keccakTheta(state: *[25]UINT64) void {
     var colSum: [5]UINT64 = undefined;
     colSum[0] = keccakColumnSum(state, 0);
     colSum[1] = keccakColumnSum(state, 1);
@@ -171,58 +171,35 @@ inline fn keccakTheta(state: [*]UINT64) void {
     keccakColumnUpdate(state, 4, colSum[3] ^ macros.ROL64(colSum[0], 1));
 }
 
-inline fn keccakRhoRow(state: [*]UINT64, comptime r: usize) void {
-    state[5 * r + 0] = macros.ROL64(state[5 * r + 0], KeccakRhoK[5 * r + 0]);
-    state[5 * r + 1] = macros.ROL64(state[5 * r + 1], KeccakRhoK[5 * r + 1]);
-    state[5 * r + 2] = macros.ROL64(state[5 * r + 2], KeccakRhoK[5 * r + 2]);
-    state[5 * r + 3] = macros.ROL64(state[5 * r + 3], KeccakRhoK[5 * r + 3]);
-    state[5 * r + 4] = macros.ROL64(state[5 * r + 4], KeccakRhoK[5 * r + 4]);
-}
-
-inline fn keccakRhoRow0(state: [*]UINT64) void {
-    state[1] = macros.ROL64(state[1], KeccakRhoK[1]);
-    state[2] = macros.ROL64(state[2], KeccakRhoK[2]);
-    state[3] = macros.ROL64(state[3], KeccakRhoK[3]);
-    state[4] = macros.ROL64(state[4], KeccakRhoK[4]);
-}
-
-inline fn keccakRho(state: [*]UINT64) void {
-    keccakRhoRow0(state);
-    keccakRhoRow(state, 1);
-    keccakRhoRow(state, 2);
-    keccakRhoRow(state, 3);
-    keccakRhoRow(state, 4);
-}
-
-inline fn keccakPi(state: [*]UINT64) void {
-    const t: UINT64 = state[1];
-    state[1] = state[6];
-    state[6] = state[9];
-    state[9] = state[22];
-    state[22] = state[14];
-    state[14] = state[20];
-    state[20] = state[2];
-    state[2] = state[12];
-    state[12] = state[13];
-    state[13] = state[19];
-    state[19] = state[23];
-    state[23] = state[15];
-    state[15] = state[4];
-    state[4] = state[24];
-    state[24] = state[21];
-    state[21] = state[8];
-    state[8] = state[16];
-    state[16] = state[5];
-    state[5] = state[3];
-    state[3] = state[18];
-    state[18] = state[17];
-    state[17] = state[11];
-    state[11] = state[7];
-    state[7] = state[10];
+inline fn keccakRhoPi(state: *[25]UINT64) void {
+    const t: UINT64 = macros.ROL64(state[1], KeccakRhoK[1]);
+    state[1] = macros.ROL64(state[6], KeccakRhoK[6]);
+    state[6] = macros.ROL64(state[9], KeccakRhoK[9]);
+    state[9] = macros.ROL64(state[22], KeccakRhoK[22]);
+    state[22] = macros.ROL64(state[14], KeccakRhoK[14]);
+    state[14] = macros.ROL64(state[20], KeccakRhoK[20]);
+    state[20] = macros.ROL64(state[2], KeccakRhoK[2]);
+    state[2] = macros.ROL64(state[12], KeccakRhoK[12]);
+    state[12] = macros.ROL64(state[13], KeccakRhoK[13]);
+    state[13] = macros.ROL64(state[19], KeccakRhoK[19]);
+    state[19] = macros.ROL64(state[23], KeccakRhoK[23]);
+    state[23] = macros.ROL64(state[15], KeccakRhoK[15]);
+    state[15] = macros.ROL64(state[4], KeccakRhoK[4]);
+    state[4] = macros.ROL64(state[24], KeccakRhoK[24]);
+    state[24] = macros.ROL64(state[21], KeccakRhoK[21]);
+    state[21] = macros.ROL64(state[8], KeccakRhoK[8]);
+    state[8] = macros.ROL64(state[16], KeccakRhoK[16]);
+    state[16] = macros.ROL64(state[5], KeccakRhoK[5]);
+    state[5] = macros.ROL64(state[3], KeccakRhoK[3]);
+    state[3] = macros.ROL64(state[18], KeccakRhoK[18]);
+    state[18] = macros.ROL64(state[17], KeccakRhoK[17]);
+    state[17] = macros.ROL64(state[11], KeccakRhoK[11]);
+    state[11] = macros.ROL64(state[7], KeccakRhoK[7]);
+    state[7] = macros.ROL64(state[10], KeccakRhoK[10]);
     state[10] = t;
 }
 
-inline fn keccakChiRow(state: [*]UINT64, comptime r: usize) void {
+inline fn keccakChiRow(state: *[25]UINT64, comptime r: usize) void {
     const t1: UINT64 = state[5 * r + 0] ^ (~state[5 * r + 1] & state[5 * r + 2]);
     const t2: UINT64 = state[5 * r + 1] ^ (~state[5 * r + 2] & state[5 * r + 3]);
     state[5 * r + 2] = state[5 * r + 2] ^ (~state[5 * r + 3] & state[5 * r + 4]);
@@ -232,7 +209,7 @@ inline fn keccakChiRow(state: [*]UINT64, comptime r: usize) void {
     state[5 * r + 1] = t2;
 }
 
-inline fn keccakChi(state: [*]UINT64) void {
+inline fn keccakChi(state: *[25]UINT64) void {
     keccakChiRow(state, 0);
     keccakChiRow(state, 1);
     keccakChiRow(state, 2);
@@ -240,22 +217,23 @@ inline fn keccakChi(state: [*]UINT64) void {
     keccakChiRow(state, 4);
 }
 
-inline fn keccakIota(state: [*]UINT64, rnd: usize) void {
+inline fn keccakIota(state: *[25]UINT64, rnd: usize) void {
     state[0] ^= KeccakIotaK[rnd];
 }
 
-inline fn keccakPermRound(state: [*]UINT64, rnd: usize) void {
+inline fn keccakPermRound(state: *[25]UINT64, rnd: usize) void {
     keccakTheta(state);
-    keccakRho(state);
-    keccakPi(state);
+    keccakRhoPi(state);
     keccakChi(state);
     keccakIota(state, rnd);
 }
 
 pub export fn SymCryptKeccakPermute(pState: [*]UINT64) callconv(SYMCRYPT_CALL) void {
+    var state: [25]UINT64 = pState[0..25].*;
     for (0..24) |r| {
-        keccakPermRound(pState, r);
+        keccakPermRound(&state, r);
     }
+    pState[0..25].* = state;
 }
 
 pub export fn SymCryptKeccakInit(
@@ -314,20 +292,42 @@ pub export fn SymCryptKeccakAppendLanes(
     macros.ASSERT((pState.stateIndex & 0x7) == 0);
     macros.ASSERT(pState.stateIndex != pState.inputBlockSize);
 
-    var uLaneIndex: UINT32 = pState.stateIndex / @sizeOf(UINT64);
+    const blockLanes: usize = pState.inputBlockSize / @sizeOf(UINT64);
+    var uLaneIndex: usize = pState.stateIndex / @sizeOf(UINT64);
+    var src = pbData;
+    var remLanes = uLaneCount;
 
-    var i: SIZE_T = 0;
-    while (i < uLaneCount) : (i += 1) {
-        pState.state[uLaneIndex] ^= macros.LOAD_LSBFIRST64(pbData + i * @sizeOf(UINT64));
-        pState.stateIndex += @sizeOf(UINT64);
-        uLaneIndex += 1;
-
-        if (pState.stateIndex == pState.inputBlockSize) {
-            SymCryptKeccakPermute(&pState.state);
-            pState.stateIndex = 0;
-            uLaneIndex = 0;
+    if (uLaneIndex != 0) {
+        const lanesToFill = blockLanes - uLaneIndex;
+        if (remLanes < lanesToFill) {
+            for (0..remLanes) |i| {
+                pState.state[uLaneIndex + i] ^= macros.LOAD_LSBFIRST64(src + i * @sizeOf(UINT64));
+            }
+            pState.stateIndex += @intCast(remLanes * @sizeOf(UINT64));
+            return;
         }
+        for (0..lanesToFill) |i| {
+            pState.state[uLaneIndex + i] ^= macros.LOAD_LSBFIRST64(src + i * @sizeOf(UINT64));
+        }
+        src += lanesToFill * @sizeOf(UINT64);
+        remLanes -= lanesToFill;
+        SymCryptKeccakPermute(&pState.state);
+        uLaneIndex = 0;
     }
+
+    while (remLanes >= blockLanes) {
+        for (0..blockLanes) |i| {
+            pState.state[i] ^= macros.LOAD_LSBFIRST64(src + i * @sizeOf(UINT64));
+        }
+        src += blockLanes * @sizeOf(UINT64);
+        remLanes -= blockLanes;
+        SymCryptKeccakPermute(&pState.state);
+    }
+
+    for (0..remLanes) |i| {
+        pState.state[i] ^= macros.LOAD_LSBFIRST64(src + i * @sizeOf(UINT64));
+    }
+    pState.stateIndex = @intCast(remLanes * @sizeOf(UINT64));
 }
 
 pub export fn SymCryptKeccakZeroAppendBlock(pState: PSYMCRYPT_KECCAK_STATE) callconv(SYMCRYPT_CALL) void {
@@ -411,22 +411,40 @@ pub export fn SymCryptKeccakExtractLanes(
     macros.ASSERT((pState.inputBlockSize & 0x7) == 0);
     macros.ASSERT((pState.stateIndex & 0x7) == 0);
 
-    var uLaneIndex: UINT32 = pState.stateIndex / @sizeOf(UINT64);
+    const blockLanes: usize = pState.inputBlockSize / @sizeOf(UINT64);
+    var uLaneIndex: usize = pState.stateIndex / @sizeOf(UINT64);
+    var dst = pbResult;
+    var remLanes = uLaneCount;
 
-    var i: SIZE_T = 0;
-    while (i < uLaneCount) : (i += 1) {
-        macros.ASSERT(pState.stateIndex <= pState.inputBlockSize);
-
-        if (pState.stateIndex == pState.inputBlockSize) {
-            SymCryptKeccakPermute(&pState.state);
-            pState.stateIndex = 0;
-            uLaneIndex = 0;
+    if (uLaneIndex < blockLanes) {
+        const avail = @min(remLanes, blockLanes - uLaneIndex);
+        for (0..avail) |i| {
+            macros.STORE_LSBFIRST64(dst + i * @sizeOf(UINT64), pState.state[uLaneIndex + i]);
         }
-
-        macros.STORE_LSBFIRST64(pbResult + i * @sizeOf(UINT64), pState.state[uLaneIndex]);
-        pState.stateIndex += @sizeOf(UINT64);
-        uLaneIndex += 1;
+        dst += avail * @sizeOf(UINT64);
+        remLanes -= avail;
+        uLaneIndex += avail;
     }
+
+    while (remLanes >= blockLanes) {
+        SymCryptKeccakPermute(&pState.state);
+        for (0..blockLanes) |i| {
+            macros.STORE_LSBFIRST64(dst + i * @sizeOf(UINT64), pState.state[i]);
+        }
+        dst += blockLanes * @sizeOf(UINT64);
+        remLanes -= blockLanes;
+        uLaneIndex = blockLanes;
+    }
+
+    if (remLanes > 0) {
+        SymCryptKeccakPermute(&pState.state);
+        for (0..remLanes) |i| {
+            macros.STORE_LSBFIRST64(dst + i * @sizeOf(UINT64), pState.state[i]);
+        }
+        uLaneIndex = remLanes;
+    }
+
+    pState.stateIndex = @intCast(uLaneIndex * @sizeOf(UINT64));
 }
 
 pub export fn SymCryptKeccakExtract(

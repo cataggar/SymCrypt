@@ -147,7 +147,7 @@ pub fn symCryptScsTableStore128XmmImpl(
     const V128 = @Vector(4, u32);
     const dstBase = pScsTable.pbTableData.? + @as(usize, iIndex) * 128;
     const pDst: [*]align(16) V128 = @ptrCast(@alignCast(dstBase));
-    const pSrc: [*]align(16) const V128 = @ptrCast(@alignCast(pbData));
+    const pSrc: [*]align(1) const V128 = @ptrCast(pbData);
 
     pDst[0] = pSrc[0];
     pDst[1] = pSrc[1];
@@ -250,7 +250,7 @@ pub fn symCryptScsTableLoad128XmmImpl(
     const entry: V128 = @splat(iIndex);
 
     var pSrc: [*]align(16) const V128 = @ptrCast(@alignCast(pScsTable.pbTableData.?));
-    const pDst: [*]align(16) V128 = @ptrCast(@alignCast(pbData));
+    const pDst: [*]align(1) V128 = @ptrCast(pbData);
 
     var mask: V128 = @select(u32, count == entry, allOnes, zeroes);
     count +%= ones;

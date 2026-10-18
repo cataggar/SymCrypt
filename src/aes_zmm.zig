@@ -2,6 +2,7 @@
 
 const types = @import("types.zig");
 const aes_xmm = @import("aes_xmm.zig");
+const wipe = @import("libmain.zig");
 
 const SYMCRYPT_AES_BLOCK_SIZE = types.SYMCRYPT_AES_BLOCK_SIZE;
 const SYMCRYPT_AES_EXPANDED_KEY = types.SYMCRYPT_AES_EXPANDED_KEY;
@@ -47,18 +48,24 @@ inline fn xtsMulAlpha16(in_v: V16u8) V16u8 {
     return aes_xmm.xtsMulAlpha8(aes_xmm.xtsMulAlpha8(in_v));
 }
 
-inline fn aesEncryptZmm2048(
+inline fn aesXtsEncryptZmm2048(
     pExpandedKey: *const SYMCRYPT_AES_EXPANDED_KEY,
-    buf: *[256]u8,
+    tweaks: *const [16]V16u8,
+    src: [*]const u8,
+    dst: [*]u8,
 ) void {
     var keyPtr: [*]const [4][4]u8 = @ptrCast(&pExpandedKey.RoundKey[0]);
     const keyLimit: [*]const [4][4]u8 = pExpandedKey.lastEncRoundKey;
-    const bPtr: [*]u8 = buf;
+    const twPtr: [*]const u8 = @ptrCast(tweaks);
     asm volatile (
-        \\vmovdqu64 0(%[b]), %%zmm0
-        \\vmovdqu64 64(%[b]), %%zmm1
-        \\vmovdqu64 128(%[b]), %%zmm2
-        \\vmovdqu64 192(%[b]), %%zmm3
+        \\vmovdqu64 0(%[src]), %%zmm0
+        \\vmovdqu64 64(%[src]), %%zmm1
+        \\vmovdqu64 128(%[src]), %%zmm2
+        \\vmovdqu64 192(%[src]), %%zmm3
+        \\vpxorq 0(%[tw]), %%zmm0, %%zmm0
+        \\vpxorq 64(%[tw]), %%zmm1, %%zmm1
+        \\vpxorq 128(%[tw]), %%zmm2, %%zmm2
+        \\vpxorq 192(%[tw]), %%zmm3, %%zmm3
         \\vbroadcasti32x4 (%[kp]), %%zmm4
         \\add $16, %[kp]
         \\vpxorq %%zmm4, %%zmm0, %%zmm0
@@ -79,13 +86,19 @@ inline fn aesEncryptZmm2048(
         \\vaesenclast %%zmm4, %%zmm1, %%zmm1
         \\vaesenclast %%zmm4, %%zmm2, %%zmm2
         \\vaesenclast %%zmm4, %%zmm3, %%zmm3
-        \\vmovdqu64 %%zmm0, 0(%[b])
-        \\vmovdqu64 %%zmm1, 64(%[b])
-        \\vmovdqu64 %%zmm2, 128(%[b])
-        \\vmovdqu64 %%zmm3, 192(%[b])
+        \\vpxorq 0(%[tw]), %%zmm0, %%zmm0
+        \\vpxorq 64(%[tw]), %%zmm1, %%zmm1
+        \\vpxorq 128(%[tw]), %%zmm2, %%zmm2
+        \\vpxorq 192(%[tw]), %%zmm3, %%zmm3
+        \\vmovdqu64 %%zmm0, 0(%[dst])
+        \\vmovdqu64 %%zmm1, 64(%[dst])
+        \\vmovdqu64 %%zmm2, 128(%[dst])
+        \\vmovdqu64 %%zmm3, 192(%[dst])
         : [kp] "+r" (keyPtr),
         : [kl] "r" (keyLimit),
-          [b] "r" (bPtr),
+          [tw] "r" (twPtr),
+          [src] "r" (src),
+          [dst] "r" (dst),
         : .{
           .xmm0 = true,
           .xmm1 = true,
@@ -97,18 +110,24 @@ inline fn aesEncryptZmm2048(
         });
 }
 
-inline fn aesDecryptZmm2048(
+inline fn aesXtsDecryptZmm2048(
     pExpandedKey: *const SYMCRYPT_AES_EXPANDED_KEY,
-    buf: *[256]u8,
+    tweaks: *const [16]V16u8,
+    src: [*]const u8,
+    dst: [*]u8,
 ) void {
     var keyPtr: [*]const [4][4]u8 = pExpandedKey.lastEncRoundKey;
     const keyLimit: [*]const [4][4]u8 = pExpandedKey.lastDecRoundKey;
-    const bPtr: [*]u8 = buf;
+    const twPtr: [*]const u8 = @ptrCast(tweaks);
     asm volatile (
-        \\vmovdqu64 0(%[b]), %%zmm0
-        \\vmovdqu64 64(%[b]), %%zmm1
-        \\vmovdqu64 128(%[b]), %%zmm2
-        \\vmovdqu64 192(%[b]), %%zmm3
+        \\vmovdqu64 0(%[src]), %%zmm0
+        \\vmovdqu64 64(%[src]), %%zmm1
+        \\vmovdqu64 128(%[src]), %%zmm2
+        \\vmovdqu64 192(%[src]), %%zmm3
+        \\vpxorq 0(%[tw]), %%zmm0, %%zmm0
+        \\vpxorq 64(%[tw]), %%zmm1, %%zmm1
+        \\vpxorq 128(%[tw]), %%zmm2, %%zmm2
+        \\vpxorq 192(%[tw]), %%zmm3, %%zmm3
         \\vbroadcasti32x4 (%[kp]), %%zmm4
         \\add $16, %[kp]
         \\vpxorq %%zmm4, %%zmm0, %%zmm0
@@ -129,13 +148,19 @@ inline fn aesDecryptZmm2048(
         \\vaesdeclast %%zmm4, %%zmm1, %%zmm1
         \\vaesdeclast %%zmm4, %%zmm2, %%zmm2
         \\vaesdeclast %%zmm4, %%zmm3, %%zmm3
-        \\vmovdqu64 %%zmm0, 0(%[b])
-        \\vmovdqu64 %%zmm1, 64(%[b])
-        \\vmovdqu64 %%zmm2, 128(%[b])
-        \\vmovdqu64 %%zmm3, 192(%[b])
+        \\vpxorq 0(%[tw]), %%zmm0, %%zmm0
+        \\vpxorq 64(%[tw]), %%zmm1, %%zmm1
+        \\vpxorq 128(%[tw]), %%zmm2, %%zmm2
+        \\vpxorq 192(%[tw]), %%zmm3, %%zmm3
+        \\vmovdqu64 %%zmm0, 0(%[dst])
+        \\vmovdqu64 %%zmm1, 64(%[dst])
+        \\vmovdqu64 %%zmm2, 128(%[dst])
+        \\vmovdqu64 %%zmm3, 192(%[dst])
         : [kp] "+r" (keyPtr),
         : [kl] "r" (keyLimit),
-          [b] "r" (bPtr),
+          [tw] "r" (twPtr),
+          [src] "r" (src),
+          [dst] "r" (dst),
         : .{
           .xmm0 = true,
           .xmm1 = true,
@@ -253,6 +278,58 @@ inline fn aesEncryptZmm512(
         });
 }
 
+inline fn clmulAcc8Zmm(
+    r_quads: *const [8][4]V16u8,
+    h_quads: *const [8][4]V16u8,
+    hx_quads: *const [8][4]V16u8,
+    a0: *[4]V16u8,
+    a1: *[4]V16u8,
+    a2: *[4]V16u8,
+) void {
+    var idx: usize = 0;
+    asm volatile (
+        \\vpxorq %%zmm5, %%zmm5, %%zmm5
+        \\vpxorq %%zmm6, %%zmm6, %%zmm6
+        \\vpxorq %%zmm7, %%zmm7, %%zmm7
+        \\1:
+        \\vmovdqu64 (%[r], %[idx]), %%zmm0
+        \\vmovdqu64 (%[h], %[idx]), %%zmm1
+        \\vmovdqu64 (%[hx], %[idx]), %%zmm2
+        \\vpclmulqdq $0x00, %%zmm1, %%zmm0, %%zmm3
+        \\vpclmulqdq $0x11, %%zmm1, %%zmm0, %%zmm4
+        \\vpsrldq $8, %%zmm0, %%zmm0
+        \\vpxorq (%[r], %[idx]), %%zmm0, %%zmm0
+        \\vpclmulqdq $0x00, %%zmm2, %%zmm0, %%zmm0
+        \\vpxorq %%zmm3, %%zmm5, %%zmm5
+        \\vpxorq %%zmm0, %%zmm6, %%zmm6
+        \\vpxorq %%zmm4, %%zmm7, %%zmm7
+        \\add $64, %[idx]
+        \\cmp $512, %[idx]
+        \\jb 1b
+        \\vmovdqu64 %%zmm5, (%[a0])
+        \\vmovdqu64 %%zmm6, (%[a1])
+        \\vmovdqu64 %%zmm7, (%[a2])
+        : [idx] "+r" (idx),
+        : [r] "r" (@as([*]const u8, @ptrCast(r_quads))),
+          [h] "r" (@as([*]const u8, @ptrCast(h_quads))),
+          [hx] "r" (@as([*]const u8, @ptrCast(hx_quads))),
+          [a0] "r" (@as([*]u8, @ptrCast(a0))),
+          [a1] "r" (@as([*]u8, @ptrCast(a1))),
+          [a2] "r" (@as([*]u8, @ptrCast(a2))),
+        : .{
+          .xmm0 = true,
+          .xmm1 = true,
+          .xmm2 = true,
+          .xmm3 = true,
+          .xmm4 = true,
+          .xmm5 = true,
+          .xmm6 = true,
+          .xmm7 = true,
+          .cc = true,
+          .memory = true,
+        });
+}
+
 inline fn clmulAcc3Zmm(
     r_quad: *[4]V16u8,
     h_quad: *[4]V16u8,
@@ -351,19 +428,10 @@ pub fn SymCryptXtsAesEncryptDataUnitZmm_2048(
 
     var src = pbSrc;
     var dst = pbDst;
-    var buf: [256]u8 = undefined;
 
     while (true) {
-        inline for (0..16) |i| {
-            store128(buf[i * 16 ..].ptr, tweaks[i] ^ load128(src + i * 16));
-        }
+        aesXtsEncryptZmm2048(pExpandedKey, &tweaks, src, dst);
         src += 16 * SYMCRYPT_AES_BLOCK_SIZE;
-
-        aesEncryptZmm2048(pExpandedKey, &buf);
-
-        inline for (0..16) |i| {
-            store128(dst + i * 16, load128(buf[i * 16 ..].ptr) ^ tweaks[i]);
-        }
         dst += 16 * SYMCRYPT_AES_BLOCK_SIZE;
 
         cbDataMain -= 16 * SYMCRYPT_AES_BLOCK_SIZE;
@@ -420,19 +488,10 @@ pub fn SymCryptXtsAesDecryptDataUnitZmm_2048(
 
     var src = pbSrc;
     var dst = pbDst;
-    var buf: [256]u8 = undefined;
 
     while (true) {
-        inline for (0..16) |i| {
-            store128(buf[i * 16 ..].ptr, tweaks[i] ^ load128(src + i * 16));
-        }
+        aesXtsDecryptZmm2048(pExpandedKey, &tweaks, src, dst);
         src += 16 * SYMCRYPT_AES_BLOCK_SIZE;
-
-        aesDecryptZmm2048(pExpandedKey, &buf);
-
-        inline for (0..16) |i| {
-            store128(dst + i * 16, load128(buf[i * 16 ..].ptr) ^ tweaks[i]);
-        }
         dst += 16 * SYMCRYPT_AES_BLOCK_SIZE;
 
         cbDataMain -= 16 * SYMCRYPT_AES_BLOCK_SIZE;
@@ -494,6 +553,7 @@ pub fn SymCryptAesGcmEncryptStitchedZmm(
         }
 
         var buf: [512]u8 = undefined;
+        defer wipe.SymCryptWipeKnownSize(&buf, @sizeOf(@TypeOf(buf)));
         var r_quads: [8][4]V16u8 = undefined;
 
         inline for (0..8) |i| {
@@ -530,12 +590,10 @@ pub fn SymCryptAesGcmEncryptStitchedZmm(
 
             aesEncryptZmm4096(pExpandedKey, &buf);
 
-            var a0: [4]V16u8 = .{ @splat(0), @splat(0), @splat(0), @splat(0) };
-            var a1: [4]V16u8 = .{ @splat(0), @splat(0), @splat(0), @splat(0) };
-            var a2: [4]V16u8 = .{ @splat(0), @splat(0), @splat(0), @splat(0) };
-            inline for (0..8) |i| {
-                clmulAcc3Zmm(&r_quads[i], &h_quads[i], &hx_quads[i], &a0, &a1, &a2);
-            }
+            var a0: [4]V16u8 = undefined;
+            var a1: [4]V16u8 = undefined;
+            var a2: [4]V16u8 = undefined;
+            clmulAcc8Zmm(&r_quads, &h_quads, &hx_quads, &a0, &a1, &a2);
 
             var a0_128 = (a0[0] ^ a0[1]) ^ (a0[2] ^ a0[3]);
             var a1_128 = (a1[0] ^ a1[1]) ^ (a1[2] ^ a1[3]);
@@ -557,12 +615,10 @@ pub fn SymCryptAesGcmEncryptStitchedZmm(
             nBlocks -= 32;
         }
 
-        var a0: [4]V16u8 = .{ @splat(0), @splat(0), @splat(0), @splat(0) };
-        var a1: [4]V16u8 = .{ @splat(0), @splat(0), @splat(0), @splat(0) };
-        var a2: [4]V16u8 = .{ @splat(0), @splat(0), @splat(0), @splat(0) };
-        inline for (0..8) |i| {
-            clmulAcc3Zmm(&r_quads[i], &h_quads[i], &hx_quads[i], &a0, &a1, &a2);
-        }
+        var a0: [4]V16u8 = undefined;
+        var a1: [4]V16u8 = undefined;
+        var a2: [4]V16u8 = undefined;
+        clmulAcc8Zmm(&r_quads, &h_quads, &hx_quads, &a0, &a1, &a2);
 
         var a0_128 = (a0[0] ^ a0[1]) ^ (a0[2] ^ a0[3]);
         var a1_128 = (a1[0] ^ a1[1]) ^ (a1[2] ^ a1[3]);
@@ -577,6 +633,7 @@ pub fn SymCryptAesGcmEncryptStitchedZmm(
         var a2: [4]V16u8 = .{ @splat(0), @splat(0), @splat(0), @splat(0) };
         var state_xored = false;
         var buf64: [64]u8 = undefined;
+        defer wipe.SymCryptWipeKnownSize(&buf64, @sizeOf(@TypeOf(buf64)));
 
         while (nBlocks >= 4) {
             inline for (0..4) |j| {
@@ -683,6 +740,7 @@ pub fn SymCryptAesGcmDecryptStitchedZmm(
         }
 
         var buf: [512]u8 = undefined;
+        defer wipe.SymCryptWipeKnownSize(&buf, @sizeOf(@TypeOf(buf)));
         var r_quads: [8][4]V16u8 = undefined;
 
         while (nBlocks >= 32) {
@@ -704,12 +762,10 @@ pub fn SymCryptAesGcmDecryptStitchedZmm(
 
             aesEncryptZmm4096(pExpandedKey, &buf);
 
-            var a0: [4]V16u8 = .{ @splat(0), @splat(0), @splat(0), @splat(0) };
-            var a1: [4]V16u8 = .{ @splat(0), @splat(0), @splat(0), @splat(0) };
-            var a2: [4]V16u8 = .{ @splat(0), @splat(0), @splat(0), @splat(0) };
-            inline for (0..8) |i| {
-                clmulAcc3Zmm(&r_quads[i], &h_quads[i], &hx_quads[i], &a0, &a1, &a2);
-            }
+            var a0: [4]V16u8 = undefined;
+            var a1: [4]V16u8 = undefined;
+            var a2: [4]V16u8 = undefined;
+            clmulAcc8Zmm(&r_quads, &h_quads, &hx_quads, &a0, &a1, &a2);
 
             var a0_128 = (a0[0] ^ a0[1]) ^ (a0[2] ^ a0[3]);
             var a1_128 = (a1[0] ^ a1[1]) ^ (a1[2] ^ a1[3]);
@@ -737,6 +793,7 @@ pub fn SymCryptAesGcmDecryptStitchedZmm(
         var a2: [4]V16u8 = .{ @splat(0), @splat(0), @splat(0), @splat(0) };
         var state_xored = false;
         var buf64: [64]u8 = undefined;
+        defer wipe.SymCryptWipeKnownSize(&buf64, @sizeOf(@TypeOf(buf64)));
 
         while (nBlocks >= 4) {
             inline for (0..4) |j| {

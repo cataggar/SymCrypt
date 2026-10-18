@@ -246,7 +246,7 @@ extern var TestErrorInjectionProb: u32;
 
 extern fn SymCryptWipe(pbData: [*]u8, cbData: usize) callconv(.c) void;
 extern fn SymCryptSha1(pbData: [*]const u8, cbData: usize, pbResult: [*]u8) callconv(.c) void;
-extern fn SymCryptLoadLsbFirstUint64(pbSrc: [*]const u8, cbSrc: usize) callconv(.c) u64;
+extern fn SymCryptLoadLsbFirstUint64(pbSrc: [*]const u8, cbSrc: usize, puDst: *u64) callconv(.c) u32;
 
 const SYMCRYPT_RSA_PARAMS = extern struct {
     version: u32,
@@ -473,7 +473,7 @@ const g_algMeasureParams = [_]AlgMeasureParams{
             32 | PERF_KEY_XTS_DATA_UNIT_4096,
             64 | PERF_KEY_XTS_DATA_UNIT_4096,
         }),
-        .dataSizes = makeDataSizes(&.{ 512, 4096, 1 << 16 }),
+        .dataSizes = makeDataSizes(&.{ 4096, 8192, 16384, 32768 }),
     },
     .{ .algName = "AesKw", .modeName = "", .keySizes = makeKeySizes(&.{ 16, 24, 32 }), .dataSizes = makeDataSizes(&.{ 16, 128, 1 << 10, 1 << 16 }) },
     .{ .algName = "AesKwp", .modeName = "", .keySizes = makeKeySizes(&.{ 16, 24, 32 }), .dataSizes = makeDataSizes(&.{ 1, 16, 128, 1 << 10, 1 << 16 }) },
@@ -655,6 +655,7 @@ fn measurePerfDataFunction(
 
 fn measurePerfOneSize(
     kf: ?PerfKeyFn,
+    setupDf: ?PerfDataFn,
     df: PerfDataFn,
     cf: ?PerfCleanFn,
     keySize: usize,
@@ -676,6 +677,9 @@ fn measurePerfOneSize(
 
         if (kf) |keyFn| {
             keyFn(b1, b2, b3, keySize);
+        }
+        if (setupDf) |prepFn| {
+            prepFn(b1, b2, b3, dataSize);
         }
 
         // Warmup call
@@ -714,7 +718,9 @@ fn formatKeySizePostfix(buf: []u8, algName: []const u8, keySize: usize) []const 
         PERF_KEY_PUB_ODD => std.fmt.bufPrint(buf, "o{d}", .{rawSize}) catch unreachable,
         PERF_KEY_PUB_PM => std.fmt.bufPrint(buf, "m{d}", .{rawSize}) catch unreachable,
         PERF_KEY_PUB_NIST => std.fmt.bufPrint(buf, "n{d}", .{rawSize}) catch unreachable,
-        else => std.fmt.bufPrint(buf, "{d}", .{rawSize}) catch unreachable,
+        PERF_KEY_XTS_DATA_UNIT_512 => "512",
+        PERF_KEY_XTS_DATA_UNIT_4096 => " 4k",
+        else => "",
     };
 }
 
@@ -735,7 +741,7 @@ fn measurePerfOneKey(
     if (kf != null and df == null) {
         var cost: f64 = 0.0;
         var range: f64 = 0.0;
-        measurePerfOneSize(null, kf.?, cf, 0, keySize, &cost, &range);
+        measurePerfOneSize(null, null, kf.?, cf, 0, keySize, &cost, &range);
         scTestAlgImpAddPerfInfo(pImp, keySize, 0, basePostfix.ptr, basePostfix.len, 0.0, cost, range);
         return;
     }
@@ -750,7 +756,7 @@ fn measurePerfOneKey(
     for (dataSizes) |ds| {
         if (ds == 0 and nSizes > 0) break;
         sizes[nSizes] = ds;
-        measurePerfOneSize(kf, df.?, cf, keySize, ds, &costs[nSizes], &ranges[nSizes]);
+        measurePerfOneSize(kf, null, df.?, cf, keySize, ds, &costs[nSizes], &ranges[nSizes]);
         nSizes += 1;
         if (ds == 0) break;
     }
@@ -771,15 +777,15 @@ fn measurePerfOneKey(
         if (nSizes == 1) {
             var dCost: f64 = 0.0;
             var dRange: f64 = 0.0;
-            measurePerfOneSize(kf, decryptFn, cf, keySize, sizes[0], &dCost, &dRange);
+            measurePerfOneSize(kf, df, decryptFn, cf, keySize, sizes[0], &dCost, &dRange);
             scTestAlgImpAddPerfInfo(pImp, keySize, sizes[0], decPostfix.ptr, decPostfix.len, 0.0, dCost, dRange);
         } else if (nSizes > 1) {
             var dCost0: f64 = 0.0;
             var dRange0: f64 = 0.0;
             var dCostN: f64 = 0.0;
             var dRangeN: f64 = 0.0;
-            measurePerfOneSize(kf, decryptFn, cf, keySize, sizes[0], &dCost0, &dRange0);
-            measurePerfOneSize(kf, decryptFn, cf, keySize, sizes[nSizes - 1], &dCostN, &dRangeN);
+            measurePerfOneSize(kf, df, decryptFn, cf, keySize, sizes[0], &dCost0, &dRange0);
+            measurePerfOneSize(kf, df, decryptFn, cf, keySize, sizes[nSizes - 1], &dCostN, &dRangeN);
             const minSize = sizes[0];
             const maxSize = sizes[nSizes - 1];
             const cpb = if (maxSize > minSize) (dCostN - dCost0) / @as(f64, @floatFromInt(maxSize - minSize)) else 0.0;
@@ -855,7 +861,9 @@ pub export fn measurePerf() callconv(.c) void {
         measurePerfOfAlg(pImp);
     }
 
-    measurePerfOfWipe();
+    if (h.isAlgFilterMatch("Wipe")) {
+        measurePerfOfWipe();
+    }
 
     const stopClock = scTestGetPerfClock();
     const stopTimeNs = getMonotonicNs();
@@ -929,13 +937,14 @@ pub export fn initPerfSystem() callconv(.c) void {
     g_PerfBuffer = buf;
 
     var state: [24]u8 = @splat(0);
-    var p = buf.ptr;
-    const pEnd = buf.ptr + TEST_MEMORY_SIZE;
-    while (@intFromPtr(p) < @intFromPtr(pEnd)) : (p += 20) {
+    var offset: usize = 0;
+    while (offset < TEST_MEMORY_SIZE) : (offset += 20) {
         SymCryptSha1(&state, 24, &state);
-        @memcpy(p[0..20], state[0..20]);
-        const v = SymCryptLoadLsbFirstUint64(state[20..].ptr, 4) +% 1;
-        std.mem.writeInt(u64, state[16..24], v, .little);
+        const copyLen = @min(20, TEST_MEMORY_SIZE - offset);
+        @memcpy(buf[offset .. offset + copyLen], state[0..copyLen]);
+        var v: u64 = 0;
+        _ = SymCryptLoadLsbFirstUint64(state[20..].ptr, 4, &v);
+        std.mem.writeInt(u64, state[16..24], v +% 1, .little);
     }
 
     measureOverhead();

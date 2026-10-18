@@ -329,6 +329,7 @@ pub export fn SymCryptCcmInit(
     cbTag: SIZE_T,
 ) callconv(SYMCRYPT_CALL) void {
     var tmpBuf: [SYMCRYPT_CCM_BLOCK_SIZE]BYTE = undefined;
+    defer libmain.SymCryptWipeKnownSize(&tmpBuf, @sizeOf(@TypeOf(tmpBuf)));
 
     macros.SYMCRYPT_SET_MAGIC(pState);
 

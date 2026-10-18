@@ -2,6 +2,7 @@
 
 const types = @import("types.zig");
 const aes_xmm = @import("aes_xmm.zig");
+const wipe = @import("libmain.zig");
 
 const SYMCRYPT_AES_BLOCK_SIZE = types.SYMCRYPT_AES_BLOCK_SIZE;
 const SYMCRYPT_AES_EXPANDED_KEY = types.SYMCRYPT_AES_EXPANDED_KEY;
@@ -195,36 +196,229 @@ inline fn aesDecryptYmm2048(
         });
 }
 
-inline fn clmulAcc3Ymm(
-    r_pair: *[2]V16u8,
-    h_pair: *[2]V16u8,
-    hx_pair: *[2]V16u8,
+inline fn aesXtsEncryptYmm2048(
+    pExpandedKey: *const SYMCRYPT_AES_EXPANDED_KEY,
+    tweaks: *const [16]V16u8,
+    src: [*]const u8,
+    dst: [*]u8,
+) void {
+    var keyPtr: [*]const [4][4]u8 = @ptrCast(&pExpandedKey.RoundKey[0]);
+    const keyLimit: [*]const [4][4]u8 = pExpandedKey.lastEncRoundKey;
+    const twPtr: [*]const u8 = @ptrCast(tweaks);
+    asm volatile (
+        \\vmovdqu 0(%[src]), %%ymm0
+        \\vmovdqu 32(%[src]), %%ymm1
+        \\vmovdqu 64(%[src]), %%ymm2
+        \\vmovdqu 96(%[src]), %%ymm3
+        \\vmovdqu 128(%[src]), %%ymm4
+        \\vmovdqu 160(%[src]), %%ymm5
+        \\vmovdqu 192(%[src]), %%ymm6
+        \\vmovdqu 224(%[src]), %%ymm7
+        \\vpxor 0(%[tw]), %%ymm0, %%ymm0
+        \\vpxor 32(%[tw]), %%ymm1, %%ymm1
+        \\vpxor 64(%[tw]), %%ymm2, %%ymm2
+        \\vpxor 96(%[tw]), %%ymm3, %%ymm3
+        \\vpxor 128(%[tw]), %%ymm4, %%ymm4
+        \\vpxor 160(%[tw]), %%ymm5, %%ymm5
+        \\vpxor 192(%[tw]), %%ymm6, %%ymm6
+        \\vpxor 224(%[tw]), %%ymm7, %%ymm7
+        \\vbroadcasti128 (%[kp]), %%ymm8
+        \\add $16, %[kp]
+        \\vpxor %%ymm8, %%ymm0, %%ymm0
+        \\vpxor %%ymm8, %%ymm1, %%ymm1
+        \\vpxor %%ymm8, %%ymm2, %%ymm2
+        \\vpxor %%ymm8, %%ymm3, %%ymm3
+        \\vpxor %%ymm8, %%ymm4, %%ymm4
+        \\vpxor %%ymm8, %%ymm5, %%ymm5
+        \\vpxor %%ymm8, %%ymm6, %%ymm6
+        \\vpxor %%ymm8, %%ymm7, %%ymm7
+        \\1:
+        \\vbroadcasti128 (%[kp]), %%ymm8
+        \\add $16, %[kp]
+        \\vaesenc %%ymm8, %%ymm0, %%ymm0
+        \\vaesenc %%ymm8, %%ymm1, %%ymm1
+        \\vaesenc %%ymm8, %%ymm2, %%ymm2
+        \\vaesenc %%ymm8, %%ymm3, %%ymm3
+        \\vaesenc %%ymm8, %%ymm4, %%ymm4
+        \\vaesenc %%ymm8, %%ymm5, %%ymm5
+        \\vaesenc %%ymm8, %%ymm6, %%ymm6
+        \\vaesenc %%ymm8, %%ymm7, %%ymm7
+        \\cmp %[kl], %[kp]
+        \\jb 1b
+        \\vbroadcasti128 (%[kp]), %%ymm8
+        \\vaesenclast %%ymm8, %%ymm0, %%ymm0
+        \\vaesenclast %%ymm8, %%ymm1, %%ymm1
+        \\vaesenclast %%ymm8, %%ymm2, %%ymm2
+        \\vaesenclast %%ymm8, %%ymm3, %%ymm3
+        \\vaesenclast %%ymm8, %%ymm4, %%ymm4
+        \\vaesenclast %%ymm8, %%ymm5, %%ymm5
+        \\vaesenclast %%ymm8, %%ymm6, %%ymm6
+        \\vaesenclast %%ymm8, %%ymm7, %%ymm7
+        \\vpxor 0(%[tw]), %%ymm0, %%ymm0
+        \\vpxor 32(%[tw]), %%ymm1, %%ymm1
+        \\vpxor 64(%[tw]), %%ymm2, %%ymm2
+        \\vpxor 96(%[tw]), %%ymm3, %%ymm3
+        \\vpxor 128(%[tw]), %%ymm4, %%ymm4
+        \\vpxor 160(%[tw]), %%ymm5, %%ymm5
+        \\vpxor 192(%[tw]), %%ymm6, %%ymm6
+        \\vpxor 224(%[tw]), %%ymm7, %%ymm7
+        \\vmovdqu %%ymm0, 0(%[dst])
+        \\vmovdqu %%ymm1, 32(%[dst])
+        \\vmovdqu %%ymm2, 64(%[dst])
+        \\vmovdqu %%ymm3, 96(%[dst])
+        \\vmovdqu %%ymm4, 128(%[dst])
+        \\vmovdqu %%ymm5, 160(%[dst])
+        \\vmovdqu %%ymm6, 192(%[dst])
+        \\vmovdqu %%ymm7, 224(%[dst])
+        : [kp] "+r" (keyPtr),
+        : [kl] "r" (keyLimit),
+          [tw] "r" (twPtr),
+          [src] "r" (src),
+          [dst] "r" (dst),
+        : .{
+          .xmm0 = true,
+          .xmm1 = true,
+          .xmm2 = true,
+          .xmm3 = true,
+          .xmm4 = true,
+          .xmm5 = true,
+          .xmm6 = true,
+          .xmm7 = true,
+          .xmm8 = true,
+          .cc = true,
+          .memory = true,
+        });
+}
+
+inline fn aesXtsDecryptYmm2048(
+    pExpandedKey: *const SYMCRYPT_AES_EXPANDED_KEY,
+    tweaks: *const [16]V16u8,
+    src: [*]const u8,
+    dst: [*]u8,
+) void {
+    var keyPtr: [*]const [4][4]u8 = pExpandedKey.lastEncRoundKey;
+    const keyLimit: [*]const [4][4]u8 = pExpandedKey.lastDecRoundKey;
+    const twPtr: [*]const u8 = @ptrCast(tweaks);
+    asm volatile (
+        \\vmovdqu 0(%[src]), %%ymm0
+        \\vmovdqu 32(%[src]), %%ymm1
+        \\vmovdqu 64(%[src]), %%ymm2
+        \\vmovdqu 96(%[src]), %%ymm3
+        \\vmovdqu 128(%[src]), %%ymm4
+        \\vmovdqu 160(%[src]), %%ymm5
+        \\vmovdqu 192(%[src]), %%ymm6
+        \\vmovdqu 224(%[src]), %%ymm7
+        \\vpxor 0(%[tw]), %%ymm0, %%ymm0
+        \\vpxor 32(%[tw]), %%ymm1, %%ymm1
+        \\vpxor 64(%[tw]), %%ymm2, %%ymm2
+        \\vpxor 96(%[tw]), %%ymm3, %%ymm3
+        \\vpxor 128(%[tw]), %%ymm4, %%ymm4
+        \\vpxor 160(%[tw]), %%ymm5, %%ymm5
+        \\vpxor 192(%[tw]), %%ymm6, %%ymm6
+        \\vpxor 224(%[tw]), %%ymm7, %%ymm7
+        \\vbroadcasti128 (%[kp]), %%ymm8
+        \\add $16, %[kp]
+        \\vpxor %%ymm8, %%ymm0, %%ymm0
+        \\vpxor %%ymm8, %%ymm1, %%ymm1
+        \\vpxor %%ymm8, %%ymm2, %%ymm2
+        \\vpxor %%ymm8, %%ymm3, %%ymm3
+        \\vpxor %%ymm8, %%ymm4, %%ymm4
+        \\vpxor %%ymm8, %%ymm5, %%ymm5
+        \\vpxor %%ymm8, %%ymm6, %%ymm6
+        \\vpxor %%ymm8, %%ymm7, %%ymm7
+        \\1:
+        \\vbroadcasti128 (%[kp]), %%ymm8
+        \\add $16, %[kp]
+        \\vaesdec %%ymm8, %%ymm0, %%ymm0
+        \\vaesdec %%ymm8, %%ymm1, %%ymm1
+        \\vaesdec %%ymm8, %%ymm2, %%ymm2
+        \\vaesdec %%ymm8, %%ymm3, %%ymm3
+        \\vaesdec %%ymm8, %%ymm4, %%ymm4
+        \\vaesdec %%ymm8, %%ymm5, %%ymm5
+        \\vaesdec %%ymm8, %%ymm6, %%ymm6
+        \\vaesdec %%ymm8, %%ymm7, %%ymm7
+        \\cmp %[kl], %[kp]
+        \\jb 1b
+        \\vbroadcasti128 (%[kp]), %%ymm8
+        \\vaesdeclast %%ymm8, %%ymm0, %%ymm0
+        \\vaesdeclast %%ymm8, %%ymm1, %%ymm1
+        \\vaesdeclast %%ymm8, %%ymm2, %%ymm2
+        \\vaesdeclast %%ymm8, %%ymm3, %%ymm3
+        \\vaesdeclast %%ymm8, %%ymm4, %%ymm4
+        \\vaesdeclast %%ymm8, %%ymm5, %%ymm5
+        \\vaesdeclast %%ymm8, %%ymm6, %%ymm6
+        \\vaesdeclast %%ymm8, %%ymm7, %%ymm7
+        \\vpxor 0(%[tw]), %%ymm0, %%ymm0
+        \\vpxor 32(%[tw]), %%ymm1, %%ymm1
+        \\vpxor 64(%[tw]), %%ymm2, %%ymm2
+        \\vpxor 96(%[tw]), %%ymm3, %%ymm3
+        \\vpxor 128(%[tw]), %%ymm4, %%ymm4
+        \\vpxor 160(%[tw]), %%ymm5, %%ymm5
+        \\vpxor 192(%[tw]), %%ymm6, %%ymm6
+        \\vpxor 224(%[tw]), %%ymm7, %%ymm7
+        \\vmovdqu %%ymm0, 0(%[dst])
+        \\vmovdqu %%ymm1, 32(%[dst])
+        \\vmovdqu %%ymm2, 64(%[dst])
+        \\vmovdqu %%ymm3, 96(%[dst])
+        \\vmovdqu %%ymm4, 128(%[dst])
+        \\vmovdqu %%ymm5, 160(%[dst])
+        \\vmovdqu %%ymm6, 192(%[dst])
+        \\vmovdqu %%ymm7, 224(%[dst])
+        : [kp] "+r" (keyPtr),
+        : [kl] "r" (keyLimit),
+          [tw] "r" (twPtr),
+          [src] "r" (src),
+          [dst] "r" (dst),
+        : .{
+          .xmm0 = true,
+          .xmm1 = true,
+          .xmm2 = true,
+          .xmm3 = true,
+          .xmm4 = true,
+          .xmm5 = true,
+          .xmm6 = true,
+          .xmm7 = true,
+          .xmm8 = true,
+          .cc = true,
+          .memory = true,
+        });
+}
+
+inline fn clmulAcc8Ymm(
+    r_pairs: *const [8][2]V16u8,
+    h_pairs: *const [8][2]V16u8,
+    hx_pairs: *const [8][2]V16u8,
     a0: *[2]V16u8,
     a1: *[2]V16u8,
     a2: *[2]V16u8,
 ) void {
+    var idx: usize = 0;
     asm volatile (
-        \\vmovdqu (%[r]), %%ymm0
-        \\vmovdqu (%[h]), %%ymm1
-        \\vmovdqu (%[hx]), %%ymm2
+        \\vpxor %%ymm5, %%ymm5, %%ymm5
+        \\vpxor %%ymm6, %%ymm6, %%ymm6
+        \\vpxor %%ymm7, %%ymm7, %%ymm7
+        \\1:
+        \\vmovdqu (%[r], %[idx]), %%ymm0
+        \\vmovdqu (%[h], %[idx]), %%ymm1
+        \\vmovdqu (%[hx], %[idx]), %%ymm2
         \\vpclmulqdq $0x00, %%ymm1, %%ymm0, %%ymm3
         \\vpclmulqdq $0x11, %%ymm1, %%ymm0, %%ymm4
-        \\vpsrldq $8, %%ymm0, %%ymm5
-        \\vpxor %%ymm5, %%ymm0, %%ymm5
-        \\vpclmulqdq $0x00, %%ymm2, %%ymm5, %%ymm5
-        \\vmovdqu (%[a0]), %%ymm6
-        \\vpxor %%ymm3, %%ymm6, %%ymm6
-        \\vmovdqu %%ymm6, (%[a0])
-        \\vmovdqu (%[a1]), %%ymm6
-        \\vpxor %%ymm5, %%ymm6, %%ymm6
+        \\vpsrldq $8, %%ymm0, %%ymm0
+        \\vpxor (%[r], %[idx]), %%ymm0, %%ymm0
+        \\vpclmulqdq $0x00, %%ymm2, %%ymm0, %%ymm0
+        \\vpxor %%ymm3, %%ymm5, %%ymm5
+        \\vpxor %%ymm0, %%ymm6, %%ymm6
+        \\vpxor %%ymm4, %%ymm7, %%ymm7
+        \\add $32, %[idx]
+        \\cmp $256, %[idx]
+        \\jb 1b
+        \\vmovdqu %%ymm5, (%[a0])
         \\vmovdqu %%ymm6, (%[a1])
-        \\vmovdqu (%[a2]), %%ymm6
-        \\vpxor %%ymm4, %%ymm6, %%ymm6
-        \\vmovdqu %%ymm6, (%[a2])
-        :
-        : [r] "r" (@as([*]const u8, @ptrCast(r_pair))),
-          [h] "r" (@as([*]const u8, @ptrCast(h_pair))),
-          [hx] "r" (@as([*]const u8, @ptrCast(hx_pair))),
+        \\vmovdqu %%ymm7, (%[a2])
+        : [idx] "+r" (idx),
+        : [r] "r" (@as([*]const u8, @ptrCast(r_pairs))),
+          [h] "r" (@as([*]const u8, @ptrCast(h_pairs))),
+          [hx] "r" (@as([*]const u8, @ptrCast(hx_pairs))),
           [a0] "r" (@as([*]u8, @ptrCast(a0))),
           [a1] "r" (@as([*]u8, @ptrCast(a1))),
           [a2] "r" (@as([*]u8, @ptrCast(a2))),
@@ -236,6 +430,8 @@ inline fn clmulAcc3Ymm(
           .xmm4 = true,
           .xmm5 = true,
           .xmm6 = true,
+          .xmm7 = true,
+          .cc = true,
           .memory = true,
         });
 }
@@ -293,19 +489,10 @@ pub fn SymCryptXtsAesEncryptDataUnitYmm_2048(
 
     var src = pbSrc;
     var dst = pbDst;
-    var buf: [256]u8 = undefined;
 
     while (true) {
-        inline for (0..16) |i| {
-            store128(buf[i * 16 ..].ptr, tweaks[i] ^ load128(src + i * 16));
-        }
+        aesXtsEncryptYmm2048(pExpandedKey, &tweaks, src, dst);
         src += 16 * SYMCRYPT_AES_BLOCK_SIZE;
-
-        aesEncryptYmm2048(pExpandedKey, &buf);
-
-        inline for (0..16) |i| {
-            store128(dst + i * 16, load128(buf[i * 16 ..].ptr) ^ tweaks[i]);
-        }
         dst += 16 * SYMCRYPT_AES_BLOCK_SIZE;
 
         cbDataMain -= 16 * SYMCRYPT_AES_BLOCK_SIZE;
@@ -362,19 +549,10 @@ pub fn SymCryptXtsAesDecryptDataUnitYmm_2048(
 
     var src = pbSrc;
     var dst = pbDst;
-    var buf: [256]u8 = undefined;
 
     while (true) {
-        inline for (0..16) |i| {
-            store128(buf[i * 16 ..].ptr, tweaks[i] ^ load128(src + i * 16));
-        }
+        aesXtsDecryptYmm2048(pExpandedKey, &tweaks, src, dst);
         src += 16 * SYMCRYPT_AES_BLOCK_SIZE;
-
-        aesDecryptYmm2048(pExpandedKey, &buf);
-
-        inline for (0..16) |i| {
-            store128(dst + i * 16, load128(buf[i * 16 ..].ptr) ^ tweaks[i]);
-        }
         dst += 16 * SYMCRYPT_AES_BLOCK_SIZE;
 
         cbDataMain -= 16 * SYMCRYPT_AES_BLOCK_SIZE;
@@ -439,6 +617,7 @@ pub fn SymCryptAesGcmEncryptStitchedYmm_2048(
     var src = pbSrc;
     var dst = pbDst;
     var buf: [256]u8 = undefined;
+    defer wipe.SymCryptWipeKnownSize(&buf, @sizeOf(@TypeOf(buf)));
     var r_pairs: [8][2]V16u8 = undefined;
 
     inline for (0..8) |i| {
@@ -479,12 +658,10 @@ pub fn SymCryptAesGcmEncryptStitchedYmm_2048(
 
         aesEncryptYmm2048(pExpandedKey, &buf);
 
-        var a0: [2]V16u8 = .{ @splat(0), @splat(0) };
-        var a1: [2]V16u8 = .{ @splat(0), @splat(0) };
-        var a2: [2]V16u8 = .{ @splat(0), @splat(0) };
-        inline for (0..8) |i| {
-            clmulAcc3Ymm(&r_pairs[i], &h_pairs[i], &hx_pairs[i], &a0, &a1, &a2);
-        }
+        var a0: [2]V16u8 = undefined;
+        var a1: [2]V16u8 = undefined;
+        var a2: [2]V16u8 = undefined;
+        clmulAcc8Ymm(&r_pairs, &h_pairs, &hx_pairs, &a0, &a1, &a2);
 
         var a0_128 = a0[0] ^ a0[1];
         var a1_128 = a1[0] ^ a1[1];
@@ -508,12 +685,10 @@ pub fn SymCryptAesGcmEncryptStitchedYmm_2048(
         cbDataMain -= 16 * SYMCRYPT_AES_BLOCK_SIZE;
     }
 
-    var a0: [2]V16u8 = .{ @splat(0), @splat(0) };
-    var a1: [2]V16u8 = .{ @splat(0), @splat(0) };
-    var a2: [2]V16u8 = .{ @splat(0), @splat(0) };
-    inline for (0..8) |i| {
-        clmulAcc3Ymm(&r_pairs[i], &h_pairs[i], &hx_pairs[i], &a0, &a1, &a2);
-    }
+    var a0: [2]V16u8 = undefined;
+    var a1: [2]V16u8 = undefined;
+    var a2: [2]V16u8 = undefined;
+    clmulAcc8Ymm(&r_pairs, &h_pairs, &hx_pairs, &a0, &a1, &a2);
 
     var a0_128 = a0[0] ^ a0[1];
     var a1_128 = a1[0] ^ a1[1];
@@ -574,6 +749,7 @@ pub fn SymCryptAesGcmDecryptStitchedYmm_2048(
     var src = pbSrc;
     var dst = pbDst;
     var buf: [256]u8 = undefined;
+    defer wipe.SymCryptWipeKnownSize(&buf, @sizeOf(@TypeOf(buf)));
     var r_pairs: [8][2]V16u8 = undefined;
 
     while (cbDataMain > 0) {
@@ -597,12 +773,10 @@ pub fn SymCryptAesGcmDecryptStitchedYmm_2048(
 
         aesEncryptYmm2048(pExpandedKey, &buf);
 
-        var a0: [2]V16u8 = .{ @splat(0), @splat(0) };
-        var a1: [2]V16u8 = .{ @splat(0), @splat(0) };
-        var a2: [2]V16u8 = .{ @splat(0), @splat(0) };
-        inline for (0..8) |i| {
-            clmulAcc3Ymm(&r_pairs[i], &h_pairs[i], &hx_pairs[i], &a0, &a1, &a2);
-        }
+        var a0: [2]V16u8 = undefined;
+        var a1: [2]V16u8 = undefined;
+        var a2: [2]V16u8 = undefined;
+        clmulAcc8Ymm(&r_pairs, &h_pairs, &hx_pairs, &a0, &a1, &a2);
 
         var a0_128 = a0[0] ^ a0[1];
         var a1_128 = a1[0] ^ a1[1];
@@ -650,6 +824,7 @@ pub fn SymCryptAesCbcDecryptYmm(
     var dst = pbDst;
     var rem = cbData;
     var buf: [256]u8 = undefined;
+    defer wipe.SymCryptWipeKnownSize(&buf, @sizeOf(@TypeOf(buf)));
     var ct: [16]V16u8 = undefined;
 
     while (rem >= 16 * SYMCRYPT_AES_BLOCK_SIZE) {

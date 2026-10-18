@@ -166,6 +166,7 @@ pub export fn SymCryptChaCha20Poly1305Decrypt(
     defer {
         SymCryptWipe(@ptrCast(&ChaCha20State), @sizeOf(SYMCRYPT_CHACHA20_STATE));
         SymCryptWipe(@ptrCast(&Poly1305State), @sizeOf(SYMCRYPT_POLY1305_STATE));
+        SymCryptWipe(@ptrCast(&buf), @sizeOf(@TypeOf(buf)));
     }
 
     if (fcbDataLteMaxDataSizeStatic == 0 and @as(u64, cbData) > SYMCRYPT_CHACHA20_POLY1305_MAX_DATA_SIZE) {

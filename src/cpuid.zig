@@ -179,7 +179,7 @@ pub fn SymCryptDetectCpuFeaturesFromRegisters() callconv(types.SYMCRYPT_CALL) vo
             types.SYMCRYPT_CPU_FEATURE_NEON_AES |
             types.SYMCRYPT_CPU_FEATURE_NEON_PMULL |
             types.SYMCRYPT_CPU_FEATURE_NEON_SHA256);
-        _ = result;
+        libmain.g_SymCryptCpuFeaturesNotPresent = result;
     }
 }
 

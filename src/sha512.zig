@@ -549,6 +549,7 @@ pub export fn SymCryptSha512AppendBlocks_ull(
     var W: [16]UINT64 align(SYMCRYPT_ALIGN_VALUE) = undefined;
 
     while (cbData >= 128) {
+        @setEvalBranchQuota(10000);
         var A = pChain.H[0];
         var B = pChain.H[1];
         var C = pChain.H[2];

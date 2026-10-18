@@ -166,7 +166,7 @@ inline fn sha256MsgExpand8Blocks4Rounds(Wx: *WxArray, r: usize) void {
 
 inline fn cround8Blocks(Wx: *const WxArray, ah: *[8]UINT32, comptime r16: usize, rb: usize, bl: usize) void {
     const T2: UINT32 = csigma0(ah[(r16 + 7) & 7]) +% maj(ah[(r16 + 7) & 7], ah[(r16 + 6) & 7], ah[(r16 + 5) & 7]);
-    const T1: UINT32 = csigma1(ah[(r16 + 3) & 7]) +% ch(ah[(r16 + 3) & 7], ah[(r16 + 2) & 7], ah[(r16 + 1) & 7]) +% @as([8]UINT32, Wx[rb + r16])[bl];
+    const T1: UINT32 = csigma1(ah[(r16 + 3) & 7]) +% ch(ah[(r16 + 3) & 7], ah[(r16 + 2) & 7], ah[(r16 + 1) & 7]) +% @as(*const [8]UINT32, @ptrCast(&Wx[rb + r16]))[bl];
     ah[(r16 + 4) & 7] +%= T1 +% ah[r16 & 7];
     ah[r16 & 7] +%= T1 +% T2;
 }

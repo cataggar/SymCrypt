@@ -376,6 +376,64 @@ inline fn SymCryptMlKemMontMul(a: UINT32, b: UINT32, bMont: UINT32) UINT32 {
     return SymCryptMlKemModSub(res, SYMCRYPT_MLKEM_Q);
 }
 
+inline fn nttLayerComptime(
+    peSrc: PSYMCRYPT_MLKEM_POLYELEMENT,
+    comptime k_in: usize,
+    comptime ulen: usize,
+) void {
+    var k: usize = k_in;
+    var start: usize = 0;
+
+    while (start < 256) : (start += 2 * ulen) {
+        const twiddleFactor: UINT32 = MlKemZetaBitRevTimesR[k];
+        const twiddleFactorMont: UINT32 = MlKemZetaBitRevTimesRTimesNegQInvModR[k];
+        k += 1;
+
+        for (0..ulen) |j| {
+            var c0: UINT32 = peSrc.coeffs[start + j];
+            macros.ASSERT(c0 < SYMCRYPT_MLKEM_Q);
+            var c1: UINT32 = peSrc.coeffs[start + j + ulen];
+            macros.ASSERT(c1 < SYMCRYPT_MLKEM_Q);
+
+            const c1TimesTwiddle = SymCryptMlKemMontMul(c1, twiddleFactor, twiddleFactorMont);
+            c1 = SymCryptMlKemModSub(c0, c1TimesTwiddle);
+            c0 = SymCryptMlKemModAdd(c0, c1TimesTwiddle);
+
+            peSrc.coeffs[start + j] = @truncate(c0);
+            peSrc.coeffs[start + j + ulen] = @truncate(c1);
+        }
+    }
+}
+
+inline fn inttLayerComptime(
+    peSrc: PSYMCRYPT_MLKEM_POLYELEMENT,
+    comptime k_in: usize,
+    comptime ulen: usize,
+) void {
+    var k: usize = k_in;
+    var start: usize = 0;
+
+    while (start < 256) : (start += 2 * ulen) {
+        const twiddleFactor: UINT32 = MlKemZetaBitRevTimesR[k];
+        const twiddleFactorMont: UINT32 = MlKemZetaBitRevTimesRTimesNegQInvModR[k];
+        k -= 1;
+
+        for (0..ulen) |j| {
+            const c0: UINT32 = peSrc.coeffs[start + j];
+            macros.ASSERT(c0 < SYMCRYPT_MLKEM_Q);
+            var c1: UINT32 = peSrc.coeffs[start + j + ulen];
+            macros.ASSERT(c1 < SYMCRYPT_MLKEM_Q);
+
+            const tmp = SymCryptMlKemModAdd(c0, c1);
+            c1 = SymCryptMlKemModSub(c1, c0);
+            c1 = SymCryptMlKemMontMul(c1, twiddleFactor, twiddleFactorMont);
+
+            peSrc.coeffs[start + j] = @truncate(tmp);
+            peSrc.coeffs[start + j + ulen] = @truncate(c1);
+        }
+    }
+}
+
 pub export fn SymCryptMlKemPolyElementNTTLayerC(
     peSrc: PSYMCRYPT_MLKEM_POLYELEMENT,
     k_in: UINT32,
@@ -555,28 +613,27 @@ pub export fn SymCryptMlKemPolyElementSub(
 pub export fn SymCryptMlKemPolyElementNTT(
     peSrc: PSYMCRYPT_MLKEM_POLYELEMENT,
 ) callconv(SYMCRYPT_CALL) void {
-    SymCryptMlKemPolyElementNTTLayerC(peSrc, 1, 128);
-    SymCryptMlKemPolyElementNTTLayerC(peSrc, 2, 64);
-    SymCryptMlKemPolyElementNTTLayerC(peSrc, 4, 32);
-    SymCryptMlKemPolyElementNTTLayerC(peSrc, 8, 16);
-    SymCryptMlKemPolyElementNTTLayerC(peSrc, 16, 8);
-    SymCryptMlKemPolyElementNTTLayerC(peSrc, 32, 4);
-    SymCryptMlKemPolyElementNTTLayerC(peSrc, 64, 2);
+    nttLayerComptime(peSrc, 1, 128);
+    nttLayerComptime(peSrc, 2, 64);
+    nttLayerComptime(peSrc, 4, 32);
+    nttLayerComptime(peSrc, 8, 16);
+    nttLayerComptime(peSrc, 16, 8);
+    nttLayerComptime(peSrc, 32, 4);
+    nttLayerComptime(peSrc, 64, 2);
 }
 
 pub export fn SymCryptMlKemPolyElementINTTAndMulR(
     peSrc: PSYMCRYPT_MLKEM_POLYELEMENT,
 ) callconv(SYMCRYPT_CALL) void {
-    SymCryptMlKemPolyElementINTTLayerC(peSrc, 127, 2);
-    SymCryptMlKemPolyElementINTTLayerC(peSrc, 63, 4);
-    SymCryptMlKemPolyElementINTTLayerC(peSrc, 31, 8);
-    SymCryptMlKemPolyElementINTTLayerC(peSrc, 15, 16);
-    SymCryptMlKemPolyElementINTTLayerC(peSrc, 7, 32);
-    SymCryptMlKemPolyElementINTTLayerC(peSrc, 3, 64);
-    SymCryptMlKemPolyElementINTTLayerC(peSrc, 1, 128);
+    inttLayerComptime(peSrc, 127, 2);
+    inttLayerComptime(peSrc, 63, 4);
+    inttLayerComptime(peSrc, 31, 8);
+    inttLayerComptime(peSrc, 15, 16);
+    inttLayerComptime(peSrc, 7, 32);
+    inttLayerComptime(peSrc, 3, 64);
+    inttLayerComptime(peSrc, 1, 128);
 
-    var i: usize = 0;
-    while (i < SYMCRYPT_MLWE_POLYNOMIAL_COEFFICIENTS) : (i += 1) {
+    for (0..SYMCRYPT_MLWE_POLYNOMIAL_COEFFICIENTS) |i| {
         peSrc.coeffs[i] = @truncate(SymCryptMlKemMontMul(
             peSrc.coeffs[i],
             SYMCRYPT_MLKEM_INTTFixupTimesRsqr,
