@@ -232,7 +232,7 @@ pub export fn SymCryptCallbackReleaseMutexFastInproc(pMutex: types.PVOID) callco
 // JitterEntropy FIPS Entropy Source (cataggar/jitterentropy)
 // ==============================================================================================
 
-const JENT_FORCE_FIPS: c_uint = 1 << 4;
+const JENT_FORCE_FIPS: c_uint = 1 << 5;
 const RandData = opaque {};
 
 extern fn jent_entropy_init() callconv(.c) c_int;
