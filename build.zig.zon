@@ -5,8 +5,8 @@
     .minimum_zig_version = "0.17.0",
     .dependencies = .{
         .jitterentropy = .{
-            .url = "https://github.com/cataggar/jitterentropy/archive/97b915e80d7eb0828ef56d9560343d2255a7b09e.tar.gz",
-            .hash = "jitterentropy-3.8.0-eEBpUFLlKwCU4pplXFMxWSITzLlZnVBPG9MF0rhAZsEo",
+            .url = "https://github.com/cataggar/jitterentropy/archive/refs/tags/v3.8.0.tar.gz",
+            .hash = "jitterentropy-3.8.0-eEBpUBklLQDftMZ7pHmSqwQ8n0CAJVfYONHp61t1UjWK",
         },
     },
     .paths = .{
