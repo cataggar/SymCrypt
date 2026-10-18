@@ -238,6 +238,7 @@ pub fn build(b: *std.Build) void {
         } else {
             run_unittest.addArgs(default_test_args);
         }
+        run_unittest.step.dependOn(b.getInstallStep());
         const test_step = b.step("test", "Run SymCrypt unit tests");
         test_step.dependOn(&run_unittest.step);
     }
