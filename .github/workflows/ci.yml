@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  attestations: read
 
 jobs:
   fmt:
@@ -14,9 +15,9 @@ jobs:
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v6
-      - uses: cataggar/ghr/actions/install@c4be68b52d67d7acd2a7fe6c1e5f126e1754176e # v0.8.1
+      - uses: cataggar/ghr/actions/install@a3be8c61b9d5c2bd6d38e6d067c69d70434a6db9 # v0.9.1
         with:
-          ghr-version: v0.8.1
+          ghr-version: v0.9.1
           tools: |
             cataggar/zig@v0.17.0 RWSGOq2NVecA2UPNdBUZykf1CCb147pkmdtYxgb3Ti+JO/wCYvhbAb/U
       - run: zig fmt --check build.zig build.zig.zon src/ src_plus/ unittest_zig/
@@ -32,9 +33,9 @@ jobs:
           - ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v6
-      - uses: cataggar/ghr/actions/install@c4be68b52d67d7acd2a7fe6c1e5f126e1754176e # v0.8.1
+      - uses: cataggar/ghr/actions/install@a3be8c61b9d5c2bd6d38e6d067c69d70434a6db9 # v0.9.1
         with:
-          ghr-version: v0.8.1
+          ghr-version: v0.9.1
           tools: |
             cataggar/zig@v0.17.0 RWSGOq2NVecA2UPNdBUZykf1CCb147pkmdtYxgb3Ti+JO/wCYvhbAb/U
       - name: Build and test (Debug)
@@ -61,9 +62,9 @@ jobs:
           - aarch64-windows-gnu
     steps:
       - uses: actions/checkout@v6
-      - uses: cataggar/ghr/actions/install@c4be68b52d67d7acd2a7fe6c1e5f126e1754176e # v0.8.1
+      - uses: cataggar/ghr/actions/install@a3be8c61b9d5c2bd6d38e6d067c69d70434a6db9 # v0.9.1
         with:
-          ghr-version: v0.8.1
+          ghr-version: v0.9.1
           tools: |
             cataggar/zig@v0.17.0 RWSGOq2NVecA2UPNdBUZykf1CCb147pkmdtYxgb3Ti+JO/wCYvhbAb/U
       - name: Cross-compile ${{ matrix.target }}
